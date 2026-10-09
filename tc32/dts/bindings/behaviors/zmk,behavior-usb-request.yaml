@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+description: |
+  Bring USB up in a position of the mode switch that has none at boot
+  (CONFIG_TLSR_USB_ON_REQUEST), until the power goes: for the host tools
+  over the cable in the BT and 2.4G positions. No key is typed over it.
+
+compatible: "zmk,behavior-usb-request"
+
+include: zero_param.yaml

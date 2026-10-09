@@ -53,7 +53,7 @@ static enum zmk_transport preferred_transport = DEFAULT_TRANSPORT;
 
 static void update_current_endpoint(void);
 
-#if IS_ENABLED(CONFIG_SETTINGS)
+#if IS_ENABLED(CONFIG_ZMK_ENDPOINTS_SETTINGS)
 static void endpoints_save_preferred_work(struct k_work *work) {
     settings_save_one(SETTING_PREFERRED_TRANSPORT, &preferred_transport,
                       sizeof(preferred_transport));
@@ -63,7 +63,7 @@ static struct k_work_delayable endpoints_save_work;
 #endif
 
 static int endpoints_save_preferred(void) {
-#if IS_ENABLED(CONFIG_SETTINGS)
+#if IS_ENABLED(CONFIG_ZMK_ENDPOINTS_SETTINGS)
     return k_work_reschedule(&endpoints_save_work, K_MSEC(CONFIG_ZMK_SETTINGS_SAVE_DEBOUNCE));
 #else
     return 0;
@@ -152,7 +152,7 @@ static struct zmk_endpoint_instance get_instance_from_transport(enum zmk_transpo
     struct zmk_endpoint_instance instance = {.transport = transport};
     switch (instance.transport) {
     case ZMK_TRANSPORT_BLE:
-#if IS_ENABLED(CONFIG_ZMK_BLE)
+#if IS_ENABLED(CONFIG_ZMK_BLE) || IS_ENABLED(CONFIG_TLSR_BLE)
         instance.ble.profile_index = zmk_ble_active_profile_index();
 #endif // IS_ENABLED(CONFIG_ZMK_BLE)
         break;
@@ -192,7 +192,7 @@ static int send_keyboard_report(void) {
     }
 
     case ZMK_TRANSPORT_BLE: {
-#if IS_ENABLED(CONFIG_ZMK_BLE)
+#if IS_ENABLED(CONFIG_ZMK_BLE) || IS_ENABLED(CONFIG_TLSR_BLE)
         struct zmk_hid_keyboard_report *keyboard_report = zmk_hid_get_keyboard_report();
         int err = zmk_hog_send_keyboard_report(&keyboard_report->body);
         if (err) {
@@ -229,7 +229,7 @@ static int send_consumer_report(void) {
     }
 
     case ZMK_TRANSPORT_BLE: {
-#if IS_ENABLED(CONFIG_ZMK_BLE)
+#if IS_ENABLED(CONFIG_ZMK_BLE) || IS_ENABLED(CONFIG_TLSR_BLE)
         struct zmk_hid_consumer_report *consumer_report = zmk_hid_get_consumer_report();
         int err = zmk_hog_send_consumer_report(&consumer_report->body);
         if (err) {
@@ -281,7 +281,7 @@ int zmk_endpoint_send_mouse_report() {
     }
 
     case ZMK_TRANSPORT_BLE: {
-#if IS_ENABLED(CONFIG_ZMK_BLE)
+#if IS_ENABLED(CONFIG_ZMK_BLE) || IS_ENABLED(CONFIG_TLSR_BLE)
         struct zmk_hid_mouse_report *mouse_report = zmk_hid_get_mouse_report();
         int err = zmk_hog_send_mouse_report(&mouse_report->body);
         if (err) {
@@ -300,7 +300,7 @@ int zmk_endpoint_send_mouse_report() {
 }
 #endif // IS_ENABLED(CONFIG_ZMK_POINTING)
 
-#if IS_ENABLED(CONFIG_SETTINGS)
+#if IS_ENABLED(CONFIG_ZMK_ENDPOINTS_SETTINGS)
 
 // Type for the deprecated SETTING_PREFERRED_TRANSPORT_V1 setting. To maintain backwards
 // compatibility when ZMK_TRANSPORT_NONE was inserted into the beginning of enum zmk_transport, the
@@ -403,18 +403,23 @@ static int endpoint_settings_commit(void) {
 SETTINGS_STATIC_HANDLER_DEFINE(endpoints, SETTING_SUBTREE, NULL, endpoint_settings_set,
                                endpoint_settings_commit, NULL);
 
-#endif /* IS_ENABLED(CONFIG_SETTINGS) */
+#endif /* IS_ENABLED(CONFIG_ZMK_ENDPOINTS_SETTINGS) */
+
+#if IS_ENABLED(CONFIG_ZMK_USB)
+/* A board that keeps HID reports off a USB that is up (for host tools only) overrides this. */
+__weak bool zmk_usb_reports_allowed(void) { return true; }
+#endif
 
 static bool is_usb_ready(void) {
 #if IS_ENABLED(CONFIG_ZMK_USB)
-    return zmk_usb_is_hid_ready();
+    return zmk_usb_is_hid_ready() && zmk_usb_reports_allowed();
 #else
     return false;
 #endif
 }
 
 static bool is_ble_ready(void) {
-#if IS_ENABLED(CONFIG_ZMK_BLE)
+#if IS_ENABLED(CONFIG_ZMK_BLE) || IS_ENABLED(CONFIG_TLSR_BLE)
     return zmk_ble_active_profile_is_connected();
 #else
     return false;
@@ -459,7 +464,7 @@ static struct zmk_endpoint_instance get_selected_instance(void) {
 }
 
 static int zmk_endpoints_init(void) {
-#if IS_ENABLED(CONFIG_SETTINGS)
+#if IS_ENABLED(CONFIG_ZMK_ENDPOINTS_SETTINGS)
     k_work_init_delayable(&endpoints_save_work, endpoints_save_preferred_work);
 #endif
 
@@ -488,9 +493,11 @@ static void update_current_endpoint(void) {
 
         current_instance = new_instance;
 
+#if IS_ENABLED(CONFIG_LOG)
         char endpoint_str[ZMK_ENDPOINT_STR_LEN];
         zmk_endpoint_instance_to_str(current_instance, endpoint_str, sizeof(endpoint_str));
         LOG_INF("Endpoint changed: %s", endpoint_str);
+#endif
 
         raise_zmk_endpoint_changed((struct zmk_endpoint_changed){.endpoint = current_instance});
     }
@@ -507,6 +514,12 @@ ZMK_SUBSCRIPTION(endpoint_listener, zmk_usb_conn_state_changed);
 #endif
 #if IS_ENABLED(CONFIG_ZMK_BLE)
 ZMK_SUBSCRIPTION(endpoint_listener, zmk_ble_active_profile_changed);
+#endif
+
+#if IS_ENABLED(CONFIG_TLSR_BLE)
+// zmk-tc32's own BLE stack (tc32/src/ble) has no zmk_ble_active_profile_changed event: it
+// asks for the endpoint to be selected again when its profile connects or disconnects.
+void zmk_endpoints_reselect(void) { update_current_endpoint(); }
 #endif
 
 SYS_INIT(zmk_endpoints_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);

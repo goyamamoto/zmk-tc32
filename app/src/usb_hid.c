@@ -30,7 +30,33 @@ static const struct device *hid_dev;
 
 static K_SEM_DEFINE(hid_sem, 1, 1);
 
-static void in_ready_cb(const struct device *dev) { k_sem_give(&hid_sem); }
+// A report that could not be written (the host had not read the one before,
+// as a computer waking from sleep resumes the bus before it reads the
+// keyboard) is marked, and the newest state of its kind is sent when the host
+// takes the report waiting in the endpoint. A report made while the host has
+// suspended the bus is marked too, and the newest state of its kind is sent
+// when the bus resumes. Without this the host keeps that older report: a key
+// released meanwhile stays held there.
+#define RESEND_KEYBOARD BIT(0)
+#define RESEND_CONSUMER BIT(1)
+#define RESEND_MOUSE BIT(2)
+
+static atomic_t resend;
+
+static void resend_work_handler(struct k_work *work);
+
+static K_WORK_DEFINE(resend_work, resend_work_handler);
+
+void zmk_usb_hid_resend(void) {
+    if (atomic_get(&resend) != 0) {
+        k_work_submit(&resend_work);
+    }
+}
+
+static void in_ready_cb(const struct device *dev) {
+    k_sem_give(&hid_sem);
+    zmk_usb_hid_resend();
+}
 
 #define HID_GET_REPORT_TYPE_MASK 0xff00
 #define HID_GET_REPORT_ID_MASK 0x00ff
@@ -184,10 +210,13 @@ static const struct hid_ops ops = {
     .set_report = set_report_cb,
 };
 
-static int zmk_usb_hid_send_report(const uint8_t *report, size_t len) {
+static int zmk_usb_hid_send_report(const uint8_t *report, size_t len, atomic_val_t kind) {
+    int err;
+
     switch (zmk_usb_get_status()) {
     case USB_DC_SUSPEND:
-        return usb_wakeup_request();
+        err = usb_wakeup_request();
+        break;
     case USB_DC_ERROR:
     case USB_DC_RESET:
     case USB_DC_DISCONNECTED:
@@ -195,20 +224,23 @@ static int zmk_usb_hid_send_report(const uint8_t *report, size_t len) {
         return -ENODEV;
     default:
         k_sem_take(&hid_sem, K_MSEC(30));
-        int err = hid_int_ep_write(hid_dev, report, len, NULL);
-
-        if (err) {
-            k_sem_give(&hid_sem);
+        err = hid_int_ep_write(hid_dev, report, len, NULL);
+        if (err == 0) {
+            return 0;
         }
-
-        return err;
+        k_sem_give(&hid_sem);
+        break;
     }
+    // Not written: the newest state of this kind goes when the host takes the report waiting in the endpoint, or
+    // when the bus resumes.
+    atomic_or(&resend, kind);
+    return err;
 }
 
 int zmk_usb_hid_send_keyboard_report(void) {
     size_t len;
     uint8_t *report = get_keyboard_report(&len);
-    return zmk_usb_hid_send_report(report, len);
+    return zmk_usb_hid_send_report(report, len, RESEND_KEYBOARD);
 }
 
 int zmk_usb_hid_send_consumer_report(void) {
@@ -219,7 +251,7 @@ int zmk_usb_hid_send_consumer_report(void) {
 #endif /* IS_ENABLED(CONFIG_ZMK_USB_BOOT) */
 
     struct zmk_hid_consumer_report *report = zmk_hid_get_consumer_report();
-    return zmk_usb_hid_send_report((uint8_t *)report, sizeof(*report));
+    return zmk_usb_hid_send_report((uint8_t *)report, sizeof(*report), RESEND_CONSUMER);
 }
 
 #if IS_ENABLED(CONFIG_ZMK_POINTING)
@@ -231,9 +263,25 @@ int zmk_usb_hid_send_mouse_report() {
 #endif /* IS_ENABLED(CONFIG_ZMK_USB_BOOT) */
 
     struct zmk_hid_mouse_report *report = zmk_hid_get_mouse_report();
-    return zmk_usb_hid_send_report((uint8_t *)report, sizeof(*report));
+    return zmk_usb_hid_send_report((uint8_t *)report, sizeof(*report), RESEND_MOUSE);
 }
 #endif // IS_ENABLED(CONFIG_ZMK_POINTING)
+
+static void resend_work_handler(struct k_work *work) {
+    atomic_val_t kinds = atomic_clear(&resend);
+
+    if (kinds & RESEND_KEYBOARD) {
+        zmk_usb_hid_send_keyboard_report();
+    }
+    if (kinds & RESEND_CONSUMER) {
+        zmk_usb_hid_send_consumer_report();
+    }
+#if IS_ENABLED(CONFIG_ZMK_POINTING)
+    if (kinds & RESEND_MOUSE) {
+        zmk_usb_hid_send_mouse_report();
+    }
+#endif // IS_ENABLED(CONFIG_ZMK_POINTING)
+}
 
 static int zmk_usb_hid_init(void) {
     hid_dev = device_get_binding("HID_0");

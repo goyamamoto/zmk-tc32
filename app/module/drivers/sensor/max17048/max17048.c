@@ -201,7 +201,7 @@ static int max17048_init(const struct device *dev) {
     return 0;
 }
 
-static const struct sensor_driver_api max17048_api_table = {.sample_fetch = max17048_sample_fetch,
+static DEVICE_API(sensor, max17048_api_table) = {.sample_fetch = max17048_sample_fetch,
                                                             .channel_get = max17048_channel_get};
 
 #define MAX17048_INIT(inst)                                                                        \

@@ -1,47 +1,30 @@
+# zmk-tc32's west manifest: Zephyr is zephyr-tc32 (the Telink TC32 port), at a
+# pinned commit. Nothing else is fetched: a TC32 build needs none of the HALs
+# or libraries upstream ZMK's manifest brings (tc32/compat stands in for the
+# LVGL and Nordic HAL Kconfig symbols ZMK sets).
+#
+# The keyboards' repository, tc32-keyboards, imports this manifest:
+#
+#   west init -m https://github.com/goyamamoto/tc32-keyboards <workspace>
+#   cd <workspace> && west update
+#
+# gives <workspace>/tc32-keyboards, <workspace>/zmk (this repository) and
+# <workspace>/zephyr, the layout tc32/scripts/build.sh expects (TC32.md, Build),
+# and Zephyr's west commands. Used on its own:
+#
+#   west init -m https://github.com/goyamamoto/zmk-tc32 --mf app/west.yml <workspace>
+#
+# ZMK's own west commands (west test, west metadata) are not registered: their
+# scripts are found only when west is set up with `west init -l app`, upstream's way.
 manifest:
   remotes:
-    - name: zephyrproject-rtos
-      url-base: https://github.com/zephyrproject-rtos
-    - name: zmkfirmware
-      url-base: https://github.com/zmkfirmware
+    - name: goyamamoto
+      url-base: https://github.com/goyamamoto
   projects:
     - name: zephyr
-      remote: zmkfirmware
-      revision: v4.1.0+zmk-fixes
-      clone-depth: 1
-      import:
-        name-blocklist:
-          - ci-tools
-          - hal_altera
-          - hal_cypress
-          - hal_infineon
-          - hal_microchip
-          - hal_nxp
-          - hal_openisa
-          - hal_xtensa
-          - hal_st
-          - hal_ti
-          - loramac-node
-          - mcuboot
-          - mcumgr
-          - net-tools
-          - openthread
-          - edtt
-          - trusted-firmware-m
-    - name: hal_stm32
-      revision: 4fcc3a3f32abe1c4cb76d9d1cef967728dd03908
-      path: modules/hal/stm32
-      remote: zmkfirmware
-      groups:
-        - hal
-    - name: lvgl
-      revision: f1db87ee98f1810328a8419572fa42a3b5f352ae
-      path: modules/lib/gui/lvgl
-      remote: zmkfirmware
-    - name: zmk-studio-messages
-      revision: 6cb4c283e76209d59c45fbcb218800cd19e9339d
-      path: modules/msgs/zmk-studio-messages
-      remote: zmkfirmware
-  group-filter: [+optional]
+      remote: goyamamoto
+      repo-path: zephyr-tc32
+      revision: a7410dadb103cf00a9e78593a3abada3219257d3
+      west-commands: scripts/west-commands.yml
   self:
-    west-commands: scripts/west-commands.yml
+    path: zmk

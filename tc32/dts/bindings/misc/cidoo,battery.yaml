@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+description: |
+  The Cidoo keyboards' battery, measured by the BLE stack (src/ble/ble_battery.c,
+  src/battery_adc.c): the SAR ADC on one input against ground, eight
+  samples through DFIFO2, the middle four averaged, millivolts on the board's
+  scale ((raw * 590 >> 9) + 71), the percentage between the empty and full
+  points below, and the level kept by rules for on battery, charging and
+  charge complete.
+
+compatible: "cidoo,battery"
+
+properties:
+  adc-input:
+    type: int
+    required: true
+    description: |
+      The ADC's positive input, as analog 0xeb bits 7:4 take it (B87 SDK
+      ADC_InputPchTypeDef; the V21: 4, B3P, the pin PB3).
+
+  full-millivolt:
+    type: int
+    required: true
+    description: |
+      The 100 % point, in the board's millivolt scale (the V21: 2823).
+
+  empty-millivolt:
+    type: int
+    required: true
+    description: |
+      The 0 % point, in the board's millivolt scale (the V21: 2109).
+
+  power-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      Active while external power is in (the V21: PD7 high, input, no pull).
+
+  charging-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      Active while charging, inactive once the charge is complete, read only
+      with power in (the V21: PD6 high, input, 10 kOhm pull-up).

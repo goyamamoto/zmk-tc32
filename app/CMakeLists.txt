@@ -85,6 +85,9 @@ if ((NOT CONFIG_ZMK_SPLIT) OR CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
     target_sources(app PRIVATE src/behaviors/behavior_bt.c)
     target_sources(app PRIVATE src/ble.c)
     target_sources(app PRIVATE src/hog.c)
+  elseif (CONFIG_TLSR_BLE)
+    # zmk-tc32's own BLE stack (tc32/src/ble) gives the profile calls &bt makes.
+    target_sources(app PRIVATE src/behaviors/behavior_bt.c)
   endif()
 endif()
 

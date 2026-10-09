@@ -1,0 +1,41 @@
+# The compile units of the code executed from reset until the boot is counted and the power-on chord
+# can take the keyboard back to the other slot (the boot guard's early stage).
+#
+# Rule: the code executed from reset until the boot is counted and the power-on chord can take the
+# keyboard back to the other slot (the boot guard's early stage) keeps its instruction sequence per
+# function; a literal may move but must point at the same symbol. The window runs from reset until
+# tlsr_boot_guard_early returns, or until the chip resets inside it: the startup and its C callees,
+# the SoC hook, the board's early hook, the flash supply trims, the count, the chord read (before or
+# after the count, as the board sets it), and the revert and reboot that the chord and the count
+# limit take (the slot copy, the reset). Code that runs after the early stage has returned is not
+# frozen: the way back before it does not depend on it.
+#
+# The units are those of the functions the emulator traces entered in that window on every board
+# (the boot-path scenarios, both flash parts). With TC32_POP_PC_RETURNS every C unit below keeps the
+# classic Thumb return (pop {...}; pop {rN}; bx rN) while the rest of the image returns with
+# pop {..., pc} (tc32_classic_returns(), zephyr-tc32 arch/tc32/CMakeLists.txt). With TC32_ICF_SAFE
+# every C unit below is compiled without the address-significance table (-fno-addrsig), so that the
+# link's identical code folding folds nothing it defines or calls. The whole unit is kept, also its
+# functions outside the window. The functions themselves are compared at every build
+# with the board's recorded instructions (tc32/scripts/boot_path_check.py,
+# <board>_studio_boot_path.txt in the board's directory): a unit missing here shows there.
+#
+# Assembly units hold the rest of the window (the startup, the SoC setup, the flash command
+# transport); the option does not change assembly.
+#
+# One path per line, from the Zephyr tree (zephyr/), this module (tc32/) or the board's directory
+# (board/). A unit the build does not compile is skipped.
+
+zephyr/arch/tc32/core/compiler_builtins.c
+zephyr/kernel/init.c
+zephyr/kernel/thread.c
+zephyr/lib/libc/minimal/source/string/string.c
+zephyr/lib/os/atomic_c.c
+zephyr/lib/os/reboot.c
+zephyr/soc/telink/tlsr/tlsr827x/soc.c
+zephyr/subsys/crc/crc32_sw.c
+tc32/src/led_key_matrix.c
+tc32/src/tlsr_boot_guard.c
+tc32/src/tlsr_slots.c
+tc32/src/tlsr_spi_flash.c
+board/board.c

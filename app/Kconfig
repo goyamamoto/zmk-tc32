@@ -143,6 +143,16 @@ config ZMK_USB_BOOT
     depends on ZMK_USB
     select USB_HID_BOOT_PROTOCOL
 
+config ZMK_USB_ENABLE_ON_REQUEST
+    bool
+    depends on ZMK_USB
+    help
+      Selected by a board option whose code calls zmk_usb_enable().
+      The USB device stack is not enabled at init: the board calls
+      zmk_usb_enable() once it knows the keyboard is to take USB, as on a
+      keyboard whose mode switch chooses between USB and its wireless links,
+      where the cable in a wireless position only brings power.
+
 config USB_DEVICE_INITIALIZE_AT_BOOT
     default n
 
@@ -637,6 +647,14 @@ endif # ZMK_SETTINGS_RESET_ON_START
 config ZMK_SETTINGS_SAVE_DEBOUNCE
     int "Milliseconds to debounce settings saves"
     default 60000
+
+config ZMK_ENDPOINTS_SETTINGS
+    bool "Keep the preferred endpoint transport in the settings"
+    default y
+    depends on SETTINGS
+    help
+      Off for a board whose firmware sets the preferred transport itself at
+      every boot (the TC32 boards' mode switch): nothing is saved or loaded.
 
 endif # SETTINGS
 

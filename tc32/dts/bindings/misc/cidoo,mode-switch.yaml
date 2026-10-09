@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+description: |
+  The Cidoo keyboards' three-way mode switch (wired, BT, 2.4G), read once by
+  the BLE stack (src/ble/ble.c) as follows: the two position pins as inputs with their pull-ups, read three times, then left
+  with input, output and pull off. A position pin reads active in its own
+  position; both inactive is the wired position.
+
+compatible: "cidoo,mode-switch"
+
+properties:
+  ble-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      Active in the BT position (V21: PC4 low; V75 Pro: PA0 low), with its
+      pull-up in the flags (GPIO_ACTIVE_LOW | GPIO_PULL_UP).
+
+  rf24-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      Active in the 2.4G position (both boards: PB6 low), flags as ble-gpios.
+
+  common-gpios:
+    type: phandle-array
+    description: |
+      A pin the switch's common contact sits on, driven low only while the
+      switch is read; its level, output enable and pad function are then put
+      back as they were (V75 Pro: PA7, the SWS pin). None on the V21, whose
+      common contact is ground.

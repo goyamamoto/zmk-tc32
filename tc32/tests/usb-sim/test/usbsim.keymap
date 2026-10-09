@@ -1,0 +1,25 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/keys.h>
+
+/ {
+	behaviors {
+		prev_fw: prev_firmware {
+			compatible = "zmk,behavior-prev-firmware";
+			#binding-cells = <0>;
+			hold-ms = <3000>;
+		};
+	};
+
+	keymap {
+		compatible = "zmk,keymap";
+
+		base {
+			bindings = <
+				&kp A &kp B
+				&kp C &prev_fw
+			>;
+		};
+	};
+};

@@ -1,0 +1,128 @@
+listener order ok
+kbd {20,[]}
+kbd {00,[2F]}
+kbd {20,[]}
+kbd {00,[]}
+kbd {00,[73]}
+kbd {00,[]}
+kbd {20,[]}
+kbd {00,[2F]}
+kbd {00,[2F]}
+kbd {00,[]}
+kbd {00,[73]}
+kbd {00,[]}
+kbd {20,[]}
+kbd {00,[2F]}
+kbd {02,[2F 87]}
+kbd {00,[2F]}
+kbd {20,[]}
+kbd {00,[]}
+kbd {00,[73]}
+kbd {00,[]}
+kbd {02,[2D]}
+kbd {00,[]}
+kbd {00,[73]}
+kbd {00,[]}
+consumer [00E9]
+consumer []
+kbd {00,[73]}
+kbd {00,[]}
+kbd {20,[]}
+kbd {00,[2F]}
+kbd {20,[04 2F]}
+kbd {00,[2F]}
+kbd {20,[]}
+kbd {00,[]}
+kbd {00,[73]}
+kbd {00,[]}
+kbd {02,[2D]}
+kbd {00,[04 2D]}
+kbd {02,[2D]}
+kbd {00,[]}
+kbd {00,[73]}
+kbd {00,[]}
+kbd {02,[2D]}
+kbd {02,[2D]}
+kbd {00,[2D 2F]}
+kbd {02,[2D]}
+kbd {02,[2D]}
+kbd {00,[]}
+kbd {00,[73]}
+kbd {00,[]}
+kbd {20,[]}
+kbd {02,[87]}
+kbd {02,[87]}
+kbd {00,[]}
+kbd {00,[73]}
+kbd {00,[]}
+kbd {02,[04]}
+kbd {02,[04 2D]}
+kbd {00,[04]}
+kbd {00,[]}
+kbd {00,[73]}
+kbd {00,[]}
+kbd {00,[04]}
+kbd {02,[04 2D]}
+kbd {02,[2D]}
+consumer [00E9]
+consumer []
+kbd {00,[]}
+kbd {00,[73]}
+kbd {00,[]}
+kbd {02,[2D]}
+kbd {01,[1B 2D]}
+kbd {00,[04 1B 2D]}
+kbd {00,[1B 2D]}
+kbd {04,[1B 2D]}
+kbd {00,[1B 2D]}
+kbd {02,[2D]}
+kbd {00,[]}
+kbd {00,[73]}
+kbd {00,[]}
+kbd {02,[2D]}
+endpoint clear
+HID state cleared by endpoint switch
+kbd {20,[]}
+kbd {20,[04]}
+kbd {20,[]}
+kbd {00,[]}
+mode DISABLED
+mode ENABLED
+kbd {02,[2D]}
+kbd {00,[]}
+kbd {00,[73]}
+kbd {00,[]}
+kbd {02,[2D]}
+mode request DISABLED pending
+kbd {00,[]}
+applying pending mode
+mode DISABLED
+kbd {00,[2E]}
+kbd {00,[]}
+consumer [00E9]
+consumer []
+kbd {00,[73]}
+kbd {00,[]}
+kbd {00,[04]}
+mode request ENABLED pending
+kbd {20,[04]}
+kbd {20,[04 1F]}
+kbd {20,[04]}
+applying pending mode
+mode ENABLED
+kbd {20,[]}
+kbd {00,[2F]}
+kbd {20,[]}
+kbd {00,[]}
+kbd {00,[73]}
+kbd {00,[]}
+kbd {02,[2D]}
+mode request DISABLED pending
+mode request ENABLED pending
+kbd {00,[]}
+kbd {02,[2D]}
+kbd {00,[]}
+mode DISABLED
+mode ENABLED
+kbd {00,[73]}
+kbd {00,[]}

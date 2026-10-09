@@ -10,8 +10,13 @@
 #include <zephyr/kernel.h>
 #include <zephyr/types.h>
 
+// An event type is told apart by its address; its name is kept for logging only.
 struct zmk_event_type {
+#if IS_ENABLED(CONFIG_LOG)
     const char *name;
+#else
+    char unused;
+#endif
 };
 
 typedef struct {
@@ -44,7 +49,8 @@ struct zmk_event_subscription {
     extern const struct zmk_event_type zmk_event_##event_type;
 
 #define ZMK_EVENT_IMPL(event_type)                                                                 \
-    const struct zmk_event_type zmk_event_##event_type = {.name = STRINGIFY(event_type)};          \
+    const struct zmk_event_type zmk_event_##event_type = {                                         \
+        IF_ENABLED(CONFIG_LOG, (.name = STRINGIFY(event_type)))};                                  \
     const struct zmk_event_type *zmk_event_ref_##event_type __used                                 \
         __attribute__((__section__(".event_type"))) = &zmk_event_##event_type;                     \
     struct event_type##_event copy_raised_##event_type(const struct event_type *ev) {              \

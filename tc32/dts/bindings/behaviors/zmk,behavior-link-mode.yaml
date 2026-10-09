@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+description: |
+  On a board without a mode switch (CONFIG_TLSR_BLE_MODE_FROM_POWER_IN):
+  choose the link, 0 USB, 1 BLE or 2 the 2.4G link (CONFIG_TLSR_P24), kept
+  with the BLE profiles; running another link, the chip reboots into the
+  chosen one (src/behavior_link_mode.c). USB needs the cable's power: chosen
+  without it, the key is ignored.
+
+compatible: "zmk,behavior-link-mode"
+
+include: one_param.yaml

@@ -1,0 +1,30 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/*
+ * Plain ZMK keymap for the TC32 build check: mod-taps that send LANG2/LANG1
+ * on tap and GUI on hold, a momentary layer, and the JIS INT1/INT3 keys.
+ */
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/keys.h>
+
+/ {
+    keymap {
+        compatible = "zmk,keymap";
+
+        base {
+            bindings = <
+                &mt LEFT_GUI LANG2  &mt RIGHT_GUI LANG1  &kp AT_SIGN
+                &mo 1               &kp A                &kp DOUBLE_QUOTES
+            >;
+        };
+
+        fn {
+            bindings = <
+                &kp LANG1         &kp INT1  &kp INT3
+                &trans            &kp B     &kp EQUAL
+            >;
+        };
+    };
+};

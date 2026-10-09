@@ -1,0 +1,14 @@
+{
+  "blob_sha256": "838c5ece36eeee3317e800c988f7e02727e09cec05baba90ff1fff022a0db7b7",
+  "size": 496,
+  "symbol": "tlsr_spi_flash_io",
+  "symbols": {
+    "flash_send_addr": 0,
+    "flash_send_cmd": 64,
+    "flash_wait_ready": 108,
+    "flash_read_cmd": 176,
+    "flash_write_cmd": 352,
+    "delay_us": 476
+  },
+  "source": "tlsr_spi_flash_io.S; blob_sha256 is the SHA-256 of its 496 bytes, which every Thumb build (THUMB=1) checks through tc32-devtools compiler/image_check.py --blob"
+}

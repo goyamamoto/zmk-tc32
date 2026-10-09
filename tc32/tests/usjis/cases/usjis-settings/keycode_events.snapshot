@@ -1,0 +1,62 @@
+boot 1
+listener order ok
+mode ENABLED
+mode DISABLED
+mode ENABLED
+save usjis/mode {01 01}
+kbd {02,[2D]}
+mode request DISABLED pending
+kbd {00,[]}
+applying pending mode
+mode DISABLED
+save usjis/mode {01 00}
+kbd {00,[04]}
+mode request ENABLED pending
+mode request DISABLED pending
+kbd {00,[]}
+mode ENABLED
+mode DISABLED
+mode ENABLED
+save usjis/mode {01 01}
+boot 2
+listener order ok
+mode restored: ENABLED
+mode DISABLED
+mode ENABLED
+mode DISABLED
+save usjis/mode {01 00}
+kbd {00,[2E]}
+mode request ENABLED pending
+applying pending mode
+mode ENABLED
+kbd {00,[]}
+save usjis/mode {01 01}
+kbd {00,[04]}
+mode request DISABLED pending
+mode request ENABLED pending
+kbd {00,[]}
+mode DISABLED
+mode ENABLED
+mode DISABLED
+save usjis/mode {01 00}
+boot 3
+listener order ok
+mode restored: DISABLED
+mode ENABLED
+mode DISABLED
+mode ENABLED
+save usjis/mode {01 01}
+kbd {02,[2D]}
+mode request DISABLED pending
+kbd {00,[]}
+applying pending mode
+mode DISABLED
+save usjis/mode {01 00}
+kbd {00,[04]}
+mode request ENABLED pending
+mode request DISABLED pending
+kbd {00,[]}
+mode ENABLED
+mode DISABLED
+mode ENABLED
+save usjis/mode {01 01}

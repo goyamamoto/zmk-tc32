@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+description: |
+  Go back to the firmware image in the other flash slot (the stock firmware
+  after the first install) and reboot, when the key is held for hold-ms. It
+  does nothing when the other slot holds no valid image.
+
+compatible: "zmk,behavior-prev-firmware"
+
+include: zero_param.yaml
+
+properties:
+  hold-ms:
+    type: int
+    default: 3000

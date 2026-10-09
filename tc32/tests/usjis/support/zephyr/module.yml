@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: kb1-test-support
+build:
+  cmake: .
+  kconfig: Kconfig
+  settings:
+    dts_root: .

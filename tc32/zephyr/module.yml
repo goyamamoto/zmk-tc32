@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# zmk-tc32's module: the TLSR8278 code; the boards are in tc32-keyboards.
+name: zmk-tc32
+build:
+  cmake: .
+  kconfig: Kconfig
+  settings:
+    dts_root: .

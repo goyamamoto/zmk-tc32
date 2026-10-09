@@ -76,13 +76,23 @@ struct kscan_matrix_data {
     /** Array of length config->inputs.len */
     struct kscan_matrix_irq_callback *irqs;
 #endif
-    /** Timestamp of the current or scheduled scan. */
+    /** Time of the current or scheduled scan, in kernel ticks. */
     int64_t scan_time;
     /**
      * Current state of the matrix as a flattened 2D array of length
      * (config->rows * config->cols)
      */
     struct zmk_debounce_state *matrix_state;
+#if USE_POLLING
+    /** The last full scan found every key released and no debouncer active. */
+    bool idle;
+#endif
+    /**
+     * The time the debouncers count at the next scan: the period it was
+     * scheduled after, or one scan period for the scan that follows a poll or
+     * an interrupt, or starts the scanning.
+     */
+    uint16_t scan_elapsed_ms;
 };
 
 struct kscan_matrix_config {
@@ -91,28 +101,27 @@ struct kscan_matrix_config {
     size_t rows;
     size_t cols;
     int32_t debounce_scan_period_ms;
+    int32_t debounce_press_scan_period_ms;
     int32_t poll_period_ms;
     enum kscan_diode_direction diode_direction;
 };
 
 /**
- * Get the index into a matrix state array from a row and column.
+ * Get the index into a matrix state array from a row and column. The number
+ * of rows and the diode direction are passed in, not read from the config
+ * here: a scan reads them once, since the config lies in the flash.
  */
-static int state_index_rc(const struct kscan_matrix_config *config, const int row, const int col) {
-    __ASSERT(row < config->rows, "Invalid row %i", row);
-    __ASSERT(col < config->cols, "Invalid column %i", col);
-
-    return (col * config->rows) + row;
+static inline int state_index_rc(const int rows, const int row, const int col) {
+    return (col * rows) + row;
 }
 
 /**
  * Get the index into a matrix state array from input/output pin indices.
  */
-static int state_index_io(const struct kscan_matrix_config *config, const int input_idx,
-                          const int output_idx) {
-    return (config->diode_direction == KSCAN_ROW2COL)
-               ? state_index_rc(config, output_idx, input_idx)
-               : state_index_rc(config, input_idx, output_idx);
+static inline int state_index_io(const bool row2col, const int rows, const int input_idx,
+                                 const int output_idx) {
+    return row2col ? state_index_rc(rows, output_idx, input_idx)
+                   : state_index_rc(rows, input_idx, output_idx);
 }
 
 static int kscan_matrix_set_all_outputs(const struct device *dev, const int value) {
@@ -185,39 +194,68 @@ static void kscan_matrix_irq_callback_handler(const struct device *port, struct 
     // Disable our interrupts temporarily to avoid re-entry while we scan.
     kscan_matrix_interrupt_disable(data->dev);
 
-    data->scan_time = k_uptime_get();
+    data->scan_time = k_uptime_ticks();
 
     k_work_reschedule(&data->work, K_NO_WAIT);
 }
 #endif
 
-static void kscan_matrix_read_continue(const struct device *dev) {
-    const struct kscan_matrix_config *config = dev->config;
+/**
+ * Schedule the next read one period after the current one's time. When that
+ * time has passed already (the work queue was held up, or the system slept),
+ * the next read comes a full period from now instead: reads that run one
+ * right after another to catch up would not be a period apart.
+ */
+static void kscan_matrix_schedule(const struct device *dev, int32_t period_ms) {
     struct kscan_matrix_data *data = dev->data;
 
-    data->scan_time += config->debounce_scan_period_ms;
+    const int64_t period = k_ms_to_ticks_ceil32(period_ms);
+    const int64_t now = k_uptime_ticks();
 
-    k_work_reschedule(&data->work, K_TIMEOUT_ABS_MS(data->scan_time));
+    data->scan_time += period;
+
+    if (data->scan_time <= now) {
+        data->scan_time = now + period;
+    }
+
+    k_work_reschedule(&data->work, K_TIMEOUT_ABS_TICKS(data->scan_time));
+}
+
+static void kscan_matrix_read_continue(const struct device *dev, int32_t period_ms) {
+    struct kscan_matrix_data *data = dev->data;
+
+    data->scan_elapsed_ms = period_ms;
+
+    kscan_matrix_schedule(dev, period_ms);
 }
 
 static void kscan_matrix_read_end(const struct device *dev) {
+    struct kscan_matrix_data *data = dev->data;
+    const struct kscan_matrix_config *config = dev->config;
+
+    // The first scan after this counts one scan period.
+    data->scan_elapsed_ms = config->debounce_scan_period_ms;
+
 #if USE_INTERRUPTS
     // Return to waiting for an interrupt.
     kscan_matrix_interrupt_enable(dev);
 #else
-    struct kscan_matrix_data *data = dev->data;
-    const struct kscan_matrix_config *config = dev->config;
-
-    data->scan_time += config->poll_period_ms;
-
     // Return to polling slowly.
-    k_work_reschedule(&data->work, K_TIMEOUT_ABS_MS(data->scan_time));
+    kscan_matrix_schedule(dev, config->poll_period_ms);
 #endif
 }
 
 static int kscan_matrix_read(const struct device *dev) {
     struct kscan_matrix_data *data = dev->data;
     const struct kscan_matrix_config *config = dev->config;
+    // The constants the loops over the keys use, read from the config once:
+    // a read of the config for every key would be a read of the flash.
+    const struct zmk_debounce_config debounce = config->debounce_config;
+    const int rows = config->rows;
+    const int cols = config->cols;
+    const bool row2col = config->diode_direction == KSCAN_ROW2COL;
+    const int elapsed_ms = data->scan_elapsed_ms;
+    bool new_press = false;
 
     // Scan the matrix.
     for (int i = 0; i < config->outputs.len; i++) {
@@ -237,15 +275,19 @@ static int kscan_matrix_read(const struct device *dev) {
         for (int j = 0; j < data->inputs.len; j++) {
             const struct kscan_gpio *in_gpio = &data->inputs.gpios[j];
 
-            const int index = state_index_io(config, in_gpio->index, out_gpio->index);
+            const int index = state_index_io(row2col, rows, in_gpio->index, out_gpio->index);
             const int active = kscan_gpio_pin_get(in_gpio, &state);
             if (active < 0) {
                 LOG_ERR("Failed to read port %s: %i", in_gpio->spec.port->name, active);
                 return active;
             }
 
-            zmk_debounce_update(&data->matrix_state[index], active, config->debounce_scan_period_ms,
-                                &config->debounce_config);
+            if (active && !zmk_debounce_is_active(&data->matrix_state[index])) {
+                // A released key read as pressed for the first time.
+                new_press = true;
+            }
+
+            zmk_debounce_update(&data->matrix_state[index], active, elapsed_ms, &debounce);
         }
 
         err = gpio_pin_set_dt(&out_gpio->spec, 0);
@@ -262,9 +304,9 @@ static int kscan_matrix_read(const struct device *dev) {
     // Process the new state.
     bool continue_scan = false;
 
-    for (int r = 0; r < config->rows; r++) {
-        for (int c = 0; c < config->cols; c++) {
-            const int index = state_index_rc(config, r, c);
+    for (int r = 0; r < rows; r++) {
+        for (int c = 0; c < cols; c++) {
+            const int index = state_index_rc(rows, r, c);
             struct zmk_debounce_state *state = &data->matrix_state[index];
 
             if (zmk_debounce_get_changed(state)) {
@@ -278,10 +320,17 @@ static int kscan_matrix_read(const struct device *dev) {
         }
     }
 
+#if USE_POLLING
+    data->idle = !continue_scan;
+#endif
+
     if (continue_scan) {
         // At least one key is pressed or the debouncer has not yet decided if
-        // it is pressed. Poll quickly until everything is released.
-        kscan_matrix_read_continue(dev);
+        // it is pressed. Poll quickly until everything is released; after a
+        // key's first pressed reading, the read that can confirm it comes
+        // after its own period.
+        kscan_matrix_read_continue(dev, new_press ? config->debounce_press_scan_period_ms
+                                                  : config->debounce_scan_period_ms);
     } else {
         // All keys are released. Return to normal.
         kscan_matrix_read_end(dev);
@@ -290,9 +339,96 @@ static int kscan_matrix_read(const struct device *dev) {
     return 0;
 }
 
+#if USE_POLLING
+/**
+ * Polling while every key is released: drive every output in turn as
+ * kscan_matrix_read() does, but only look whether any input is active. The
+ * debouncers are left alone: updating a released one with an inactive input
+ * changes nothing. With all the inputs on one port, each output takes a read
+ * of that port and one mask; the port is read twice and the second read
+ * taken, which comes no sooner after the output is driven than
+ * kscan_matrix_read()'s read does.
+ *
+ * @return 1 if an input is active, 0 if none is, or a negative error.
+ */
+static int kscan_matrix_any_active(const struct device *dev) {
+    const struct kscan_matrix_data *data = dev->data;
+    const struct kscan_matrix_config *config = dev->config;
+    const struct device *in_port = data->inputs.gpios[0].spec.port;
+    gpio_port_pins_t in_mask = 0;
+
+    for (int j = 0; j < data->inputs.len; j++) {
+        const struct gpio_dt_spec *in = &data->inputs.gpios[j].spec;
+
+        if (in->port != in_port) {
+            in_port = NULL;
+            break;
+        }
+        in_mask |= BIT(in->pin);
+    }
+
+    int found = 0;
+
+    for (int i = 0; i < config->outputs.len; i++) {
+        const struct kscan_gpio *out_gpio = &config->outputs.gpios[i];
+        int active = 0;
+
+        int err = gpio_pin_set_dt(&out_gpio->spec, 1);
+        if (err) {
+            return err;
+        }
+
+#if CONFIG_ZMK_KSCAN_MATRIX_WAIT_BEFORE_INPUTS > 0
+        k_busy_wait(CONFIG_ZMK_KSCAN_MATRIX_WAIT_BEFORE_INPUTS);
+#endif
+        if (in_port != NULL) {
+            gpio_port_value_t value;
+
+            active = gpio_port_get(in_port, &value);
+            if (active == 0) {
+                active = gpio_port_get(in_port, &value);
+            }
+            if (active == 0) {
+                active = (value & in_mask) != 0;
+            }
+        } else {
+            struct kscan_gpio_port_state state = {0};
+
+            for (int j = 0; j < data->inputs.len && active == 0; j++) {
+                active = kscan_gpio_pin_get(&data->inputs.gpios[j], &state);
+            }
+        }
+
+        err = gpio_pin_set_dt(&out_gpio->spec, 0);
+        if (err) {
+            return err;
+        }
+
+#if CONFIG_ZMK_KSCAN_MATRIX_WAIT_BETWEEN_OUTPUTS > 0
+        k_busy_wait(CONFIG_ZMK_KSCAN_MATRIX_WAIT_BETWEEN_OUTPUTS);
+#endif
+        if (active < 0) {
+            return active;
+        }
+        found |= active;
+    }
+
+    return found;
+}
+#endif
+
 static void kscan_matrix_work_handler(struct k_work *work) {
     struct k_work_delayable *dwork = k_work_delayable_from_work(work);
     struct kscan_matrix_data *data = CONTAINER_OF(dwork, struct kscan_matrix_data, work);
+
+#if USE_POLLING
+    if (data->idle && kscan_matrix_any_active(data->dev) == 0) {
+        // Still nothing pressed: the next poll, without a full scan.
+        kscan_matrix_read_end(data->dev);
+        return;
+    }
+#endif
+
     kscan_matrix_read(data->dev);
 }
 
@@ -309,11 +445,32 @@ static int kscan_matrix_configure(const struct device *dev, const kscan_callback
 
 static int kscan_matrix_enable(const struct device *dev) {
     struct kscan_matrix_data *data = dev->data;
+    const struct kscan_matrix_config *config = dev->config;
 
-    data->scan_time = k_uptime_get();
+#if USE_POLLING
+    if (data->callback == NULL) {
+        // Nothing takes the events yet: the polling starts when it is
+        // enabled with a callback set.
+        return 0;
+    }
 
-    // Read will automatically start interrupts/polling once done.
+    data->scan_time = k_uptime_ticks();
+    data->scan_elapsed_ms = config->debounce_scan_period_ms;
+    data->idle = false;
+
+    // The first read runs on the work queue, as every later one does, in
+    // place of one still scheduled. It starts the polling once done.
+    k_work_reschedule(&data->work, K_NO_WAIT);
+
+    return 0;
+#else
+    data->scan_time = k_uptime_ticks();
+    data->scan_elapsed_ms = config->debounce_scan_period_ms;
+
+    // Read will automatically start interrupts once done: a matrix enabled as
+    // a wake source has them armed when this returns.
     return kscan_matrix_read(dev);
+#endif
 }
 
 static int kscan_matrix_disable(const struct device *dev) {
@@ -497,6 +654,9 @@ static const struct kscan_driver_api kscan_matrix_api = {
                  "ZMK_KSCAN_DEBOUNCE_PRESS_MS or debounce-press-ms is too large");                 \
     BUILD_ASSERT(INST_DEBOUNCE_RELEASE_MS(n) <= DEBOUNCE_COUNTER_MAX,                              \
                  "ZMK_KSCAN_DEBOUNCE_RELEASE_MS or debounce-release-ms is too large");             \
+    BUILD_ASSERT(DT_INST_PROP_OR(n, debounce_press_scan_period_ms,                                 \
+                                 DT_INST_PROP(n, debounce_scan_period_ms)) > 0,                    \
+                 "debounce-press-scan-period-ms and debounce-scan-period-ms must be at least 1");  \
                                                                                                    \
     static struct kscan_gpio kscan_matrix_rows_##n[] = {                                           \
         LISTIFY(INST_ROWS_LEN(n), KSCAN_GPIO_ROW_CFG_INIT, (, ), n)};                              \
@@ -526,6 +686,8 @@ static const struct kscan_driver_api kscan_matrix_api = {
                 .debounce_release_ms = INST_DEBOUNCE_RELEASE_MS(n),                                \
             },                                                                                     \
         .debounce_scan_period_ms = DT_INST_PROP(n, debounce_scan_period_ms),                       \
+        .debounce_press_scan_period_ms = DT_INST_PROP_OR(                                          \
+            n, debounce_press_scan_period_ms, DT_INST_PROP(n, debounce_scan_period_ms)),           \
         .poll_period_ms = DT_INST_PROP(n, poll_period_ms),                                         \
         .diode_direction = INST_DIODE_DIR(n),                                                      \
     };                                                                                             \

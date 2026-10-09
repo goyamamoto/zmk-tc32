@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+description: |
+  Key matrix of a TLSR8278 keyboard whose matrix columns also switch the
+  columns of an RGB LED matrix (src/led_key_matrix.c; the Cidoo V21's
+  wiring). Each column switches the anodes of its
+  LEDs through a PNP transistor: a column driven low lights its LEDs, one
+  driven high leaves them dark. Each row's red, green and blue lines are PWM
+  outputs (high: on). The matrix has diodes from the columns to the rows,
+  and the rows read high through their pull-downs when a key connects them
+  to a column driven high.
+
+  Timer1 interrupts every 500 us. Each of the first slots lights one column
+  (all columns high, the row lines' PWM compare values for that column, the
+  PWM on, that column low); the last slot scans the keys with the PWM off.
+  At most one column is low while any PWM output runs. With nothing to light
+  the timer runs the key scan only, at the same period.
+
+  The column and row GPIO flags must be GPIO_ACTIVE_HIGH: the driver drives
+  and reads the physical levels this description gives.
+
+compatible: "cidoo,led-key-matrix"
+
+include: kscan.yaml
+
+properties:
+  col-gpios:
+    type: phandle-array
+    required: true
+    description: The columns, in matrix column order
+  row-gpios:
+    type: phandle-array
+    required: true
+    description: The rows, in matrix row order, each with its pull-down
+  debounce-press-ms:
+    type: int
+    default: 0
+    description: |
+      A press counts once the key has read pressed for this long (ZMK's
+      debouncer; each scan counts as 6.5 ms). 0 counts it at the first scan
+      that sees it.
+  debounce-release-ms:
+    type: int
+    default: 5
+    description: |
+      A release counts once the key has read released for this long. 5 (as
+      ZMK's matrix default) counts it at the second scan in a row that sees
+      it released.
+  pwm-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      The pins of PWM0 to PWM5, in channel order.
+  pwm-mux:
+    type: array
+    required: true
+    description: |
+      For each pin of pwm-gpios, the pad function value that selects its PWM
+      channel (DS-TLSR8278 Table 7-1: PA2-PA4 2, PB0-PB2 0).
+  rgb-channels:
+    type: array
+    required: true
+    description: |
+      For each row, the PWM channels of its red, green and blue lines (three
+      per row).

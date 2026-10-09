@@ -1,0 +1,38 @@
+listener order ok
+kbd {01,[]}
+kbd {01,[30]}
+kbd {01,[]}
+kbd {00,[]}
+kbd {00,[73]}
+kbd {00,[]}
+kbd {01,[]}
+kbd {21,[]}
+kbd {01,[2F]}
+kbd {21,[]}
+kbd {01,[]}
+kbd {00,[]}
+kbd {00,[73]}
+kbd {00,[]}
+kbd {00,[2F]}
+kbd {00,[]}
+kbd {00,[73]}
+kbd {00,[]}
+kbd {20,[]}
+kbd {02,[87]}
+kbd {02,[87]}
+kbd {02,[87]}
+kbd {02,[87]}
+kbd {00,[]}
+kbd {00,[73]}
+kbd {00,[]}
+kbd {02,[2D]}
+mode request DISABLED pending
+endpoint clear
+HID state cleared by endpoint switch
+applying pending mode
+mode DISABLED
+kbd {00,[2E]}
+kbd {00,[]}
+mode ENABLED
+kbd {02,[2D]}
+kbd {00,[]}

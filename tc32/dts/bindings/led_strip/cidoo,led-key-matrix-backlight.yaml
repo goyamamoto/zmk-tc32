@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+description: |
+  The RGB backlight of a "cidoo,led-key-matrix" as an LED strip (ZMK's
+  underglow). Pixel n of the strip lights the LED positions that
+  led-pixels gives it.
+
+compatible: "cidoo,led-key-matrix-backlight"
+
+properties:
+  chain-length:
+    type: int
+    required: true
+    description: Pixels in the strip
+  led-pixels:
+    type: uint8-array
+    required: true
+    description: |
+      For each LED position of the matrix (row * columns + column), the
+      strip pixel it shows, or 0xff where there is no LED. Two positions may
+      show the same pixel (an LED position under the other half of a 2u key).

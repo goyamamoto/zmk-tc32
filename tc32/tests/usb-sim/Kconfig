@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+config TLSR_USB_SIM_TEST
+	bool "Test the TLSR8278 usb_dc driver (tc32/drivers/usb/device) against a register model"
+	depends on ARCH_POSIX
+	select USB_DC_TELINK_B87_SIM
+	help
+	  Adds a model of the Telink TLSR8278 USB device controller registers
+	  and a thread that plays the USB host: it enumerates the device and
+	  reads interrupt IN reports, then exits with 0 on success.

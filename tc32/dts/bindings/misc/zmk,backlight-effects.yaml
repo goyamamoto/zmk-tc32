@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+description: |
+  Backlight effects for the Cidoo V21 (src/led_key_matrix_effects.c) on an LED
+  strip: wave, breathe and light, with a 192-step colour wheel and 46 preset
+  colours, ten brightness levels and five speeds. The keymap drives them through a
+  "zmk,behavior-backlight-rgb".
+
+compatible: "zmk,backlight-effects"
+
+properties:
+  led-strip:
+    type: phandle
+    required: true
+    description: The strip whose pixels the effects light
+  grid:
+    type: uint8-array
+    required: true
+    description: |
+      The six rows of the LED grid, top row first, four pixels
+      each, 0xff where a row has fewer. The wave and breathe colour them
+      row by row.
+  rings:
+    type: uint8-array
+    required: true
+    description: |
+      Four rings of pixels around a centre key, the centre first, each the
+      same length, padded with 0xff. The light effect fills them outwards.
+  num-lock-pixel:
+    type: int
+    description: |
+      The pixel that shows the host's Num Lock (bit 0 of the keyboard LED
+      output report, with ZMK_HID_INDICATORS): full white over the effect
+      while the backlight is on, whatever the brightness level.

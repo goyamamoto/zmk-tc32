@@ -8,6 +8,7 @@
 #include <zephyr/init.h>
 #include <zephyr/sys/crc.h>
 #include <zephyr/sys/util_macro.h>
+#include <stdio.h>
 #include <string.h>
 
 #if IS_ENABLED(CONFIG_ZMK_BEHAVIOR_LOCAL_IDS) &&                                                   \

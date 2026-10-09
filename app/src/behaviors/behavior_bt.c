@@ -63,11 +63,18 @@ static const struct behavior_parameter_value_metadata prof_index_param1_values[]
     },
 };
 
+/* With the TC32 boards' own BLE stack there is no CONFIG_BT_MAX_PAIRED. */
+#if IS_ENABLED(CONFIG_TLSR_BLE)
+#define PROFILE_COUNT CONFIG_TLSR_BLE_PROFILES
+#else
+#define PROFILE_COUNT ZMK_BLE_PROFILE_COUNT
+#endif
+
 static const struct behavior_parameter_value_metadata prof_index_param2_values[] = {
     {
         .display_name = "Profile",
         .type = BEHAVIOR_PARAMETER_VALUE_TYPE_RANGE,
-        .range = {.min = 0, .max = ZMK_BLE_PROFILE_COUNT},
+        .range = {.min = 0, .max = PROFILE_COUNT},
     },
 };
 

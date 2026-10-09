@@ -102,7 +102,7 @@ static int bvd_channel_get(const struct device *dev, enum sensor_channel chan,
     return battery_channel_get(&drv_data->value, chan, val);
 }
 
-static const struct sensor_driver_api bvd_api = {
+static DEVICE_API(sensor, bvd_api) = {
     .sample_fetch = bvd_sample_fetch,
     .channel_get = bvd_channel_get,
 };

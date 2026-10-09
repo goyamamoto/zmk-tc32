@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+description: |
+  Rotary encoder (knob) counted per detent, as on the Cidoo V75 Pro: a
+  move starts at a detent (both pins equal), the pin
+  that changes first gives the direction, and the move counts when the other
+  pin arrives (both pins equal again). A contact that bounces back to the
+  start cancels the move. Each move is two pulses, so with steps = 2 x the
+  moves per rotation one move reports 360 / (moves per rotation) degrees.
+
+compatible: "cidoo,detent-encoder"
+
+properties:
+  a-gpios:
+    type: phandle-array
+    required: true
+    description: The pin whose change first means clockwise (positive)
+  b-gpios:
+    type: phandle-array
+    required: true
+    description: The other pin
+  steps:
+    type: int
+    required: true
+    description: Pulses in one full rotation (two per detent move)

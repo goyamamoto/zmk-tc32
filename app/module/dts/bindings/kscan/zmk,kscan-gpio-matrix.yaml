@@ -31,6 +31,9 @@ properties:
     type: int
     default: 1
     description: Time between reads in milliseconds when any key is pressed.
+  debounce-press-scan-period-ms:
+    type: int
+    description: Time in milliseconds from a read that sees a key pressed for the first time to the next read, which can confirm it. Defaults to debounce-scan-period-ms.
   poll-period-ms:
     type: int
     default: 10

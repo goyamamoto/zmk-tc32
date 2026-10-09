@@ -67,6 +67,11 @@ void usb_status_cb(enum usb_dc_status_code status, const uint8_t *params) {
     }
 #endif
     usb_status = status;
+#if IS_ENABLED(CONFIG_ZMK_USB)
+    if (status == USB_DC_RESUME) {
+        zmk_usb_hid_resend();
+    }
+#endif
     if (zmk_usb_get_conn_state() == ZMK_USB_CONN_HID) {
         is_configured |= usb_status == USB_DC_CONFIGURED;
     } else {
@@ -75,7 +80,7 @@ void usb_status_cb(enum usb_dc_status_code status, const uint8_t *params) {
     k_work_submit(&usb_status_notifier_work);
 };
 
-static int zmk_usb_init(void) {
+int zmk_usb_enable(void) {
     int usb_enable_ret;
 
     usb_enable_ret = usb_enable(usb_status_cb);
@@ -88,4 +93,8 @@ static int zmk_usb_init(void) {
     return 0;
 }
 
+#if !IS_ENABLED(CONFIG_ZMK_USB_ENABLE_ON_REQUEST)
+static int zmk_usb_init(void) { return zmk_usb_enable(); }
+
 SYS_INIT(zmk_usb_init, APPLICATION, CONFIG_ZMK_USB_INIT_PRIORITY);
+#endif

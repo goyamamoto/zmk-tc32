@@ -1,0 +1,31 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/*
+ * Build-only ZMK check on TC32: a 2x3 mock matrix instead of real GPIOs.
+ * The events toggle US-JIS on layer 1, then type @ and " (substituted keys),
+ * then tap and hold the LANG2/GUI mod-tap.
+ */
+#include <dt-bindings/zmk/kscan_mock.h>
+
+/ {
+    chosen {
+        zmk,kscan = &kscan;
+    };
+
+    kscan: kscan_mock {
+        compatible = "zmk,kscan-mock";
+        rows = <2>;
+        columns = <3>;
+        events = <
+            ZMK_MOCK_PRESS(1,0,10) ZMK_MOCK_PRESS(0,0,10)
+            ZMK_MOCK_RELEASE(0,0,10) ZMK_MOCK_RELEASE(1,0,10)
+            ZMK_MOCK_PRESS(0,2,10) ZMK_MOCK_RELEASE(0,2,10)
+            ZMK_MOCK_PRESS(1,2,10) ZMK_MOCK_RELEASE(1,2,10)
+            ZMK_MOCK_PRESS(0,1,10) ZMK_MOCK_RELEASE(0,1,10)
+            ZMK_MOCK_PRESS(0,1,400) ZMK_MOCK_PRESS(1,1,10)
+            ZMK_MOCK_RELEASE(1,1,10) ZMK_MOCK_RELEASE(0,1,10)
+        >;
+    };
+};

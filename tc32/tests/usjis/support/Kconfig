@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+config KB1_TEST_BOOT_DELAY_MS
+    int "Test only: delay the inits between the physical layouts and the keymap (ms)"
+    default 0
+    help
+      boot_delay.c sleeps this long in an init placed just before ZMK's
+      keymap.c, as slow inits do on the keyboard (settings read from flash),
+      so that a switch held at power-on is reported before the keymap is
+      ready.

@@ -1,0 +1,39 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/*
+ * IME-flavoured keymap for the TC32 build check: mod-taps that send
+ * LANG2/LANG1 on tap and GUI on hold, US-JIS substitution (zmk-usjis) with its
+ * toggle on layer 1, keys it substitutes (@ and "), and the JIS INT1/INT3 keys.
+ */
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/keys.h>
+#include <dt-bindings/zmk/usjis.h>
+
+/ {
+    behaviors {
+        usjis: usjis {
+            compatible = "zmk,behavior-usjis";
+            #binding-cells = <1>;
+        };
+    };
+
+    keymap {
+        compatible = "zmk,keymap";
+
+        base {
+            bindings = <
+                &mt LEFT_GUI LANG2  &mt RIGHT_GUI LANG1  &kp AT_SIGN
+                &mo 1               &kp A                &kp DOUBLE_QUOTES
+            >;
+        };
+
+        fn {
+            bindings = <
+                &usjis USJIS_TOG  &kp INT1  &kp INT3
+                &trans            &kp B     &kp EQUAL
+            >;
+        };
+    };
+};

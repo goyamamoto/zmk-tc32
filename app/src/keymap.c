@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <stdio.h>
 #include <drivers/behavior.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/settings/settings.h>
@@ -65,7 +66,13 @@ static zmk_keymap_layer_id_t _zmk_keymap_layer_default = 0;
 // When a behavior handles a key position "down" event, we record the layer state
 // here so that even if that layer is deactivated before the "up", event, we
 // still send the release event to the behavior in that layer also.
+#if IS_ENABLED(CONFIG_ZMK_KEYMAP_SMALL_POSITION_TABLES)
+/* The layer state at a position's press, one bit a layer: an octet holds eight layers. */
+BUILD_ASSERT(ZMK_KEYMAP_LAYERS_LEN <= 8, "the layer state of a position in one octet");
+static uint8_t zmk_keymap_active_behavior_layer[ZMK_KEYMAP_LEN];
+#else
 static uint32_t zmk_keymap_active_behavior_layer[ZMK_KEYMAP_LEN];
+#endif
 
 #if IS_ENABLED(CONFIG_ZMK_KEYMAP_LAYER_REORDERING)
 
@@ -249,7 +256,7 @@ zmk_keymap_get_layer_binding_at_idx(zmk_keymap_layer_id_t layer_id, uint16_t bin
 
     ASSERT_LAYER_VAL(layer_id, NULL)
 
-    const uint32_t *pos_map;
+    const zmk_position_map_entry_t *pos_map;
     int ret = zmk_physical_layouts_get_selected_to_stock_position_map(&pos_map);
     if (ret < 0) {
         LOG_WRN("Failed to get the position map, can't find the right binding to return (%d)", ret);
@@ -285,7 +292,7 @@ int zmk_keymap_set_layer_binding_at_idx(zmk_keymap_layer_id_t layer_id, uint16_t
 
     ASSERT_LAYER_VAL(layer_id, -EINVAL)
 
-    const uint32_t *pos_map;
+    const zmk_position_map_entry_t *pos_map;
     int ret = zmk_physical_layouts_get_selected_to_stock_position_map(&pos_map);
     if (ret < 0) {
         LOG_WRN("Failed to get the mapping to determine where to set the binding (%d)", ret);
@@ -495,6 +502,47 @@ int zmk_keymap_check_unsaved_changes(void) {
 #define LAYER_NAME_SETTINGS_KEY "keymap/l_n/%d"
 #define LAYER_BINDING_SETTINGS_KEY "keymap/l/%d/%d"
 
+// The settings names of the keymap, written and read without the printf and strtoul families: a
+// layer or a key position is a non-negative number in decimal, as %d writes it.
+static char *keymap_setting_put_uint(char *out, uint32_t v) {
+    char digits[10];
+    int n = 0;
+    do {
+        digits[n++] = '0' + v % 10;
+        v /= 10;
+    } while (v);
+    while (n) {
+        *out++ = digits[--n];
+    }
+    *out = '\0';
+    return out;
+}
+
+// LAYER_NAME_SETTINGS_KEY for layer
+static void keymap_layer_name_setting(char *out, int layer) {
+    memcpy(out, "keymap/l_n/", sizeof("keymap/l_n/") - 1);
+    keymap_setting_put_uint(out + sizeof("keymap/l_n/") - 1, layer);
+}
+
+// LAYER_BINDING_SETTINGS_KEY for layer and key_position
+static void keymap_binding_setting(char *out, int layer, int key_position) {
+    memcpy(out, "keymap/l/", sizeof("keymap/l/") - 1);
+    out = keymap_setting_put_uint(out + sizeof("keymap/l/") - 1, layer);
+    *out++ = '/';
+    keymap_setting_put_uint(out, key_position);
+}
+
+// The decimal digits at s (none gives 0), and in *end the first character after them: what
+// strtoul(s, end, 10) gives for the names the keymap writes, which hold no blank, sign or prefix.
+static uint32_t keymap_setting_get_uint(const char *s, char **end) {
+    uint32_t v = 0;
+    while (*s >= '0' && *s <= '9') {
+        v = v * 10 + (uint32_t)(*s++ - '0');
+    }
+    *end = (char *)s;
+    return v;
+}
+
 static int save_bindings(void) {
     for (int l = 0; l < ZMK_KEYMAP_LAYERS_LEN; l++) {
         uint8_t *pending = zmk_keymap_layer_pending_changes[l];
@@ -524,7 +572,7 @@ static int save_bindings(void) {
                 }
 
                 char setting_name[20];
-                sprintf(setting_name, LAYER_BINDING_SETTINGS_KEY, l, kp);
+                keymap_binding_setting(setting_name, l, kp);
 
                 int ret = settings_save_one(setting_name, &binding_setting, len);
                 if (ret < 0) {
@@ -557,7 +605,7 @@ static int save_layer_names(void) {
     for (int id = 0; id < ZMK_KEYMAP_LAYERS_LEN; id++) {
         if (changed_layer_names & BIT(id)) {
             char setting_name[14];
-            sprintf(setting_name, LAYER_NAME_SETTINGS_KEY, id);
+            keymap_layer_name_setting(setting_name, id);
             int ret = settings_save_one(setting_name, zmk_keymap_layer_names[id],
                                         strlen(zmk_keymap_layer_names[id]));
             if (ret < 0) {
@@ -634,13 +682,13 @@ static int keymap_track_changed_bindings(const char *key, size_t len, settings_r
         uint8_t(*state)[ZMK_KEYMAP_LAYERS_LEN][PENDING_ARRAY_SIZE] =
             (uint8_t(*)[ZMK_KEYMAP_LAYERS_LEN][PENDING_ARRAY_SIZE])param;
         char *endptr;
-        uint8_t layer = strtoul(next, &endptr, 10);
+        uint8_t layer = keymap_setting_get_uint(next, &endptr);
         if (*endptr != '/') {
             LOG_WRN("Invalid layer number: %s with endptr %s", next, endptr);
             return -EINVAL;
         }
 
-        uint32_t key_position = strtoul(endptr + 1, &endptr, 10);
+        uint32_t key_position = keymap_setting_get_uint(endptr + 1, &endptr);
 
         if (*endptr != '\0') {
             LOG_WRN("Invalid key_position number: %s with endptr %s", next, endptr);
@@ -662,7 +710,7 @@ int zmk_keymap_reset_settings(void) {
 
     for (int l = 0; l < ZMK_KEYMAP_LAYERS_LEN; l++) {
         char layer_name_setting_name[14];
-        sprintf(layer_name_setting_name, LAYER_NAME_SETTINGS_KEY, l);
+        keymap_layer_name_setting(layer_name_setting_name, l);
         settings_delete(layer_name_setting_name);
 
         uint8_t *changes = zmk_keymap_layer_changes[l];
@@ -676,7 +724,7 @@ int zmk_keymap_reset_settings(void) {
             if (changes[k / 8] & BIT(k % 8)) {
                 LOG_WRN("CLEAR %d on %d layer", k, l);
                 char setting_name[20];
-                sprintf(setting_name, LAYER_BINDING_SETTINGS_KEY, l, k);
+                keymap_binding_setting(setting_name, l, k);
                 settings_delete(setting_name);
             }
         }
@@ -848,7 +896,7 @@ static int keymap_handle_set(const char *name, size_t len, settings_read_cb read
 
     if (settings_name_steq(name, "l_n", &next) && next) {
         char *endptr;
-        zmk_keymap_layer_id_t layer = strtoul(next, &endptr, 10);
+        zmk_keymap_layer_id_t layer = keymap_setting_get_uint(next, &endptr);
 
         if (*endptr != '\0') {
             LOG_WRN("Invalid layer number: %s with endptr %s", next, endptr);
@@ -869,13 +917,13 @@ static int keymap_handle_set(const char *name, size_t len, settings_read_cb read
         zmk_keymap_layer_names[layer][ret] = 0;
     } else if (settings_name_steq(name, "l", &next) && next) {
         char *endptr;
-        uint8_t layer = strtoul(next, &endptr, 10);
+        uint8_t layer = keymap_setting_get_uint(next, &endptr);
         if (*endptr != '/') {
             LOG_WRN("Invalid layer number: %s with endptr %s", next, endptr);
             return -EINVAL;
         }
 
-        uint32_t key_position = strtoul(endptr + 1, &endptr, 10);
+        uint32_t key_position = keymap_setting_get_uint(endptr + 1, &endptr);
 
         if (*endptr != '\0') {
             LOG_WRN("Invalid key_position number: %s with endptr %s", next, endptr);

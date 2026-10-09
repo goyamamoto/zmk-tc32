@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+description: |
+  Pair the proprietary 2.4G link with a dongle again (CONFIG_TLSR_P24) once
+  the key has been held for hold-ms. It does nothing outside the mode
+  switch's 2.4G position.
+
+compatible: "zmk,behavior-p24-pair"
+
+include: zero_param.yaml
+
+properties:
+  hold-ms:
+    type: int
+    default: 3000

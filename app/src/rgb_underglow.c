@@ -81,16 +81,21 @@ static struct zmk_led_hsb hsb_scale_zero_max(struct zmk_led_hsb hsb) {
     return hsb;
 }
 
+// Integer arithmetic: the formulas of the float version (v = b, p = v(1 - s),
+// q = v(1 - fs), t = v(1 - (1 - f)s), f the position within the 60 degree
+// sector) scaled to 0-255, truncated as its conversion was, give the same
+// bytes to within 1. Soft float took most of the CPU of a TC32 at 20 ticks a
+// second.
 static struct led_rgb hsb_to_rgb(struct zmk_led_hsb hsb) {
-    float r = 0, g = 0, b = 0;
+    uint8_t r = 0, g = 0, b = 0;
 
     uint8_t i = hsb.h / 60;
-    float v = hsb.b / ((float)BRT_MAX);
-    float s = hsb.s / ((float)SAT_MAX);
-    float f = hsb.h / ((float)HUE_MAX) * 6 - i;
-    float p = v * (1 - s);
-    float q = v * (1 - f * s);
-    float t = v * (1 - (1 - f) * s);
+    uint32_t f = hsb.h - i * 60; // in 60ths of the sector
+    uint32_t scale = BRT_MAX * SAT_MAX * 60;
+    uint8_t v = 255 * hsb.b / BRT_MAX;
+    uint8_t p = 255 * hsb.b * (SAT_MAX - hsb.s) / (BRT_MAX * SAT_MAX);
+    uint8_t q = 255 * hsb.b * (SAT_MAX * 60 - f * hsb.s) / scale;
+    uint8_t t = 255 * hsb.b * (SAT_MAX * 60 - (60 - f) * hsb.s) / scale;
 
     switch (i % 6) {
     case 0:
@@ -125,7 +130,7 @@ static struct led_rgb hsb_to_rgb(struct zmk_led_hsb hsb) {
         break;
     }
 
-    struct led_rgb rgb = {r : r * 255, g : g * 255, b : b * 255};
+    struct led_rgb rgb = {r : r, g : g, b : b};
 
     return rgb;
 }

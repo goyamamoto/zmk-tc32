@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+description: |
+  Show the keyboard's state on its LEDs for a few seconds
+  (CONFIG_TLSR_STATUS_DISPLAY): the battery, the CPU left over, the link
+  modes and the Bluetooth profiles.
+
+compatible: "zmk,behavior-status-display"
+
+include: zero_param.yaml

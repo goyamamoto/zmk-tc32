@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+description: Test only. Clears the HID reports as an endpoint change does.
+
+compatible: "zmk,behavior-test-clear"
+
+include: zero_param.yaml

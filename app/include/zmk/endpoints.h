@@ -24,6 +24,9 @@
 
 #ifdef CONFIG_ZMK_BLE
 #define ZMK_ENDPOINT_BLE_COUNT ZMK_BLE_PROFILE_COUNT
+#elif defined(CONFIG_TLSR_BLE)
+/* The own BLE stack's profiles (tc32/src/ble), each an endpoint instance of the BLE transport */
+#define ZMK_ENDPOINT_BLE_COUNT CONFIG_TLSR_BLE_PROFILES
 #else
 #define ZMK_ENDPOINT_BLE_COUNT 0
 #endif

@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: Apache-2.0
+# ZMK main (written for Zephyr 4.1) on zephyr-tc32 (Zephyr 4.4): gives types
+# to symbols that ZMK's Kconfig assigns defaults to but that come from modules
+# a TC32 build does not fetch (LVGL, Nordic HAL) or that Zephyr 4.4 removed
+# (BT_CONN_TX_MAX, KSCAN), and restores Zephyr 4.1's kscan API header and DT
+# base binding. List it before ZMK's app/module (see CMakeLists.txt).
+name: zmk_zephyr44_compat
+build:
+  cmake: .
+  kconfig: Kconfig
+  settings:
+    dts_root: .

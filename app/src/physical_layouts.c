@@ -324,9 +324,13 @@ static int get_index_of_layout(const struct zmk_physical_layout *layout) {
     return -ENODEV;
 }
 
-static uint32_t selected_to_stock_map[ZMK_KEYMAP_LEN];
+#if IS_ENABLED(CONFIG_ZMK_KEYMAP_SMALL_POSITION_TABLES)
+BUILD_ASSERT(ZMK_KEYMAP_LEN < UINT8_MAX, "a position map entry of one octet");
+#endif
 
-int zmk_physical_layouts_get_selected_to_stock_position_map(uint32_t const **map) {
+static zmk_position_map_entry_t selected_to_stock_map[ZMK_KEYMAP_LEN];
+
+int zmk_physical_layouts_get_selected_to_stock_position_map(zmk_position_map_entry_t const **map) {
     *map = selected_to_stock_map;
     return ZMK_KEYMAP_LEN;
 }
@@ -440,7 +444,7 @@ int zmk_physical_layouts_save_selected(void) {
 int zmk_physical_layouts_revert_selected(void) { return zmk_physical_layouts_select_initial(); }
 
 int zmk_physical_layouts_get_position_map(uint8_t source, uint8_t dest, size_t map_size,
-                                          uint32_t map[map_size]) {
+                                          zmk_position_map_entry_t map[map_size]) {
     if (source >= ARRAY_SIZE(layouts) || dest >= ARRAY_SIZE(layouts)) {
         return -EINVAL;
     }

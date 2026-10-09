@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Host test of the TLSR8278 usb_dc driver: a register model of the Telink USB
+# device controller and a scripted USB host, on native_sim.
+name: tlsr-usb-sim
+build:
+  cmake: .
+  kconfig: Kconfig

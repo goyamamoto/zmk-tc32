@@ -1,0 +1,7 @@
+s/^report: //p
+s/^usjis: \(listener order [a-z]*\).*/\1/p
+s/^usjis: \(mode .*\)/\1/p
+s/^usjis: \(applying pending mode\)/\1/p
+s/^usjis: \(HID state cleared by endpoint switch\).*/\1/p
+s/^usjis_test: \(save .*\)/\1/p
+s/^\(boot [0-9]*\)$/\1/p

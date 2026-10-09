@@ -124,6 +124,7 @@ static bool rpc_tx_buffer_write(pb_ostream_t *stream, const uint8_t *buf, size_t
     size_t written = 0;
 
     bool escape_byte_already_written = false;
+    int full_ms = 0;
     do {
         uint32_t write_idx = 0;
 
@@ -131,8 +132,19 @@ static bool rpc_tx_buffer_write(pb_ostream_t *stream, const uint8_t *buf, size_t
         uint32_t claim_len = ring_buf_put_claim(&rpc_tx_buf, &write_buf, count - written);
 
         if (claim_len == 0) {
+            /*
+             * The ring is full. The transport is asked to send; when nothing
+             * takes an octet for 50 ms (no program on the port), the message
+             * is given up instead of this thread waiting for ever.
+             */
+            selected_transport->tx_notify(&rpc_tx_buf, 0, true, user_data);
+            if (++full_ms > 50) {
+                return false;
+            }
+            k_sleep(K_MSEC(1));
             continue;
         }
+        full_ms = 0;
 
         int escapes_written = 0;
         for (int i = 0; i < claim_len && write_idx < claim_len; i++) {
@@ -199,6 +211,7 @@ static int send_response(const zmk_studio_Response *resp) {
 #if !IS_ENABLED(CONFIG_NANOPB_NO_ERRMSG)
         LOG_ERR("Failed to encode the message %s", stream.errmsg);
 #endif // !IS_ENABLED(CONFIG_NANOPB_NO_ERRMSG)
+        k_mutex_unlock(&rpc_transport_mutex);
         return -EINVAL;
     }
 
@@ -243,7 +256,12 @@ K_THREAD_DEFINE(studio_rpc_thread, CONFIG_ZMK_STUDIO_RPC_THREAD_STACK_SIZE, rpc_
                 NULL, K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
 
 static void refresh_selected_transport(void) {
+#if IS_ENABLED(CONFIG_ZMK_STUDIO_TRANSPORT_BLE)
     enum zmk_transport transport = zmk_endpoint_get_selected().transport;
+#else
+    /* The serial port is the only transport: Studio stays on it whichever endpoint the keys go to. */
+    enum zmk_transport transport = ZMK_TRANSPORT_USB;
+#endif
 
     k_mutex_lock(&rpc_transport_mutex, K_FOREVER);
 

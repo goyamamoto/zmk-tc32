@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+description: |
+  ZMK's RGB commands (dt-bindings/zmk/rgb.h: RGB_TOG, RGB_HUI, RGB_BRI, ...)
+  for the "zmk,backlight-effects" (src/behavior_backlight_rgb.c: hue
+  steps the preset colours, saturation the white mixed in, brightness the
+  levels, speed the speeds).
+
+compatible: "zmk,behavior-backlight-rgb"
+
+include: two_param.yaml

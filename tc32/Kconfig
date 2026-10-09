@@ -1,0 +1,1117 @@
+config TLSR_SPI_FLASH
+	bool "Flash driver over the SPI flash transport in src/tlsr_spi_flash_io.S"
+	default y
+	depends on DT_HAS_TELINK_TLSR_SPI_FLASH_ENABLED
+	depends on SOC_TLSR8278
+	select FLASH_HAS_DRIVER_ENABLED
+	select FLASH_HAS_EXPLICIT_ERASE
+	select FLASH_HAS_PAGE_LAYOUT
+	help
+	  src/flash_tlsr_spi.c over src/tlsr_spi_flash.c: every SPI transaction
+	  runs read_cmd or write_cmd in src/tlsr_spi_flash_io.S. The board's
+	  flash node selects it with the compatible "telink,tlsr-spi-flash".
+
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+config TLSR_SLOTS
+	bool
+	depends on FLASH
+	select CRC
+	help
+	  Firmware slot helpers for TLSR827x keyboards with two
+	  images in flash: at 0x00000 and at TLSR_SLOT_B_OFFSET.
+
+if TLSR_SLOTS
+
+config TLSR_SLOT_B_OFFSET
+	hex "Flash offset of the second firmware slot"
+	default 0x20000
+	help
+	  The Cidoo TLSR8278 keyboards have their second firmware slot at
+	  0x20000, where the original firmware in the other slot expects it.
+
+config TLSR_SLOT_SIZE
+	hex "Largest image, including its CRC"
+	default 0x20000
+
+config TLSR_SLOTS_JOURNAL_OFFSET
+	hex "Flash offset of the revert journal (two 4 KB sectors)"
+	default 0x69000
+	help
+	  A record and a copy of the first sector of the slot being made
+	  bootable, so that a reset during a revert does not lose it.
+
+config TLSR_SLOTS_SIM
+	bool "Test hooks for native_sim"
+	depends on ARCH_POSIX
+	help
+	  The running slot, the reboot, the watchdog and the reset cause come
+	  from the test (tlsr_slots_sim_*() in tlsr_slots.h).
+
+module = TLSR_SLOTS
+module-str = tlsr_slots
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # TLSR_SLOTS
+
+# The legacy usb_dc driver of the TLSR8278's USB device controller
+# (drivers/usb/device/usb_dc_b87.c), for the legacy USB device stack.
+config USB_DC_TELINK_B87
+	bool "USB device controller driver for Telink TLSR8278"
+	default y
+	depends on USB_DEVICE_DRIVER
+	depends on DT_HAS_TELINK_B87_USBD_ENABLED
+	help
+	  Enable the full-speed USB device controller of the Telink TLSR8278.
+
+config USB_DC_TELINK_B87_IRQ_LINES
+	bool "Take the TLSR8278 USB interrupt lines"
+	default y
+	depends on USB_DC_TELINK_B87
+	help
+	  Enable the controller's five interrupt lines (EP0 setup, data and
+	  status, the data endpoints, bus reset) next to the driver's 1 ms
+	  poll. Without this option the driver polls only, and the lines
+	  stay masked.
+
+config USB_DC_TELINK_B87_EXTERNAL_POLL
+	bool
+	depends on USB_DC_TELINK_B87
+	help
+	  Selected by a board driver that calls usb_dc_b87_poll()
+	  (<zephyr/drivers/usb/usb_dc_b87.h>) every millisecond from its
+	  own timer interrupt, so that the kernel's timeout processing does not
+	  run every millisecond in the system timer interrupt. The driver's
+	  poll timer then runs every USB_DC_TELINK_B87_FALLBACK_POLL_MS and polls
+	  only when the board has not polled since its last expiry: USB keeps
+	  working, slower, when the board's timer stops.
+
+config USB_DC_TELINK_B87_SLOW_POLL
+	bool
+	depends on USB_DC_TELINK_B87 && !USB_DC_TELINK_B87_EXTERNAL_POLL
+	help
+	  Selected by a board driver that calls usb_dc_b87_slow_poll()
+	  (<zephyr/drivers/usb/usb_dc_b87.h>) around a low-power state in
+	  which no host uses the bus: the poll timer then runs every
+	  USB_DC_TELINK_B87_SLOW_POLL_MS instead of every millisecond, so that
+	  the chip can suspend between its expiries.
+
+config USB_DC_TELINK_B87_SLOW_POLL_MS
+	int "Period of the slow poll (ms)"
+	default 10
+	range 2 20
+	depends on USB_DC_TELINK_B87_SLOW_POLL
+	help
+	  With the poll slowed, the longest gap between polls is one period;
+	  USB 2.0 9.2.6.4 gives a request without data, and a status stage,
+	  50 ms.
+
+config USB_DC_TELINK_B87_FALLBACK_POLL_MS
+	int "Period of the fallback poll with an external poll (ms)"
+	default 10
+	range 2 20
+	depends on USB_DC_TELINK_B87_EXTERNAL_POLL
+	help
+	  Each expiry runs the kernel's timeout processing in the system timer
+	  interrupt, which can hold the board's timer interrupt back (an LED
+	  driver's time slots, for example). A longer period costs less and only slows
+	  USB when the board's timer has stopped. With the board's timer stopped
+	  the longest gap between polls is two periods, and USB 2.0 9.2.6.4
+	  gives a request without data, and a status stage, 50 ms: hence at
+	  most 20. Raise it for a board that needs its timer on time rather
+	  than drop the fallback.
+
+config USB_DC_TELINK_B87_SIM
+	bool "Route TLSR8278 USB register accesses to a model"
+	depends on USB_DC_TELINK_B87 && ARCH_POSIX
+	help
+	  For host tests on native_sim: the driver calls tlsr_usb_sim_rd8() and
+	  tlsr_usb_sim_wr8(), which the test provides, instead of accessing the
+	  registers.
+
+config TLSR_USB_OTA
+	bool "Telink USB OTA receiver"
+	depends on USB_DEVICE_HID && FLASH
+	select TLSR_SLOTS
+	help
+	  Accept firmware images over USB HID report ID 5 with the OTA
+	  protocol the original firmware also accepts (telink_ota.py), and write
+	  them to the flash slot that is not running. Uses the second HID
+	  device (USB_HID_DEVICE_COUNT >= 2) and needs interrupt endpoints of
+	  at least 33 bytes (HID_INTERRUPT_EP_MPS).
+
+if TLSR_USB_OTA
+
+config TLSR_USB_OTA_INIT_PRIORITY
+	int "Initialization priority"
+	default 94
+	help
+	  The HID device must be registered before ZMK enables USB
+	  (ZMK_USB_INIT_PRIORITY).
+
+config TLSR_USB_OTA_SIM_TRIMS
+	bool "Flash supply trims from the test (native_sim)"
+	depends on TLSR_SLOTS_SIM && !TLSR_SPI_FLASH
+	help
+	  The receiver raises and puts back the flash supply trims of a Zbit
+	  flash as on hardware, through tlsr_spi_flash_trim_raise() and
+	  tlsr_spi_flash_trim_restore(), which the test defines as a model.
+
+config TLSR_USB_OTA_STACK_SIZE
+	int "Thread stack size"
+	default 1152
+	help
+	  The receiver's thread also runs the confirm's flash test
+	  (ble_bond_flash_test(): the bond log read back and compared with
+	  RAM, then rewritten), its deepest path: up to about 790 B measured
+	  in the emulator with a confirm after a way back and a reinstall.
+
+config TLSR_USB_OTA_THREAD_PRIORITY
+	int "Thread priority"
+	default 10
+
+config TLSR_USB_OTA_GATE
+	bool "An update over an image that checks in the other slot needs the unlock command"
+	default y
+	help
+	  The other slot holds the original firmware after the install (or the
+	  previous build): the image the boot guard, the power-on chord and
+	  &prev_fw go back to. With this, chunk 0 of an update into that slot
+	  is taken while the slot holds an image that checks only after the
+	  unlock command (0xff05, which telink_ota.py sends only with
+	  --overwrite-other-slot) within TLSR_USB_OTA_ARM_MS; otherwise it is
+	  answered with status 13 and nothing is written. That chunk 0 uses
+	  the unlock up. With nothing that checks there the update is taken as
+	  before (it is then the way back), and the confirm's flash test, which
+	  writes the bond log's sectors only, is not held up; neither uses the
+	  unlock up, which then lasts until its window ends. No key is needed,
+	  so this receiver stays a way back when the keys do not work.
+
+config TLSR_USB_OTA_ARM_MS
+	int "How long the unlock holds (ms)"
+	default 10000
+	range 100 60000
+	depends on TLSR_USB_OTA_GATE
+	help
+	  telink_ota.py sends the start command and chunk 0 right after the
+	  unlock; the window only has to cover that.
+
+module = TLSR_USB_OTA
+module-str = tlsr_usb_ota
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # TLSR_USB_OTA
+
+config TLSR_BOOT_GUARD
+	bool "Go back to the other slot's image after repeated watchdog resets"
+	depends on FLASH
+	select TLSR_SLOTS
+	help
+	  Runs the Timer2 watchdog, counts the boots that follow a watchdog
+	  reset, and after TLSR_BOOT_GUARD_RESETS of them without a healthy
+	  boot in between makes the image in the other slot boot.
+
+if TLSR_BOOT_GUARD
+
+config TLSR_BOOT_GUARD_OFFSET
+	hex "Flash offset of the reset counter sector"
+	default 0x68000
+
+config TLSR_BOOT_GUARD_RESETS
+	int "Watchdog resets before going back"
+	default 3
+
+config TLSR_BOOT_GUARD_EARLY
+	bool "Count and revert from the board's early-init hook, before the kernel"
+	depends on TLSR_SPI_FLASH
+	default y
+	help
+	  tlsr_boot_guard_early(), which the board calls from
+	  board_early_init_hook() (right after the SoC setup, before any device
+	  or thread), finishes an interrupted revert, counts the boot and
+	  reverts after TLSR_BOOT_GUARD_RESETS of them, through the flash
+	  routines of src/tlsr_spi_flash.c (no driver is ready yet). So an
+	  image that hangs anywhere after the SoC setup, even before the
+	  kernel, is reset by the SoC's early watchdog, counted, and left.
+	  Without this, the counting happens at POST_KERNEL and a hang before
+	  that is never counted.
+
+config TLSR_BOOT_GUARD_UNLOCK
+	bool "Clear the flash's block protection at boot"
+	depends on TLSR_SPI_FLASH
+	default y
+	help
+	  Before its first flash write the boot guard reads the flash status
+	  register and, when block-protect bits are set (the original firmware
+	  locks the low 256 KB, both slots, with 0x18 at boot and unlocks at
+	  its OTA start), clears them for GD25LD40C/80C and ZB25WD40B/80B
+	  by JEDEC ID (one status byte, mask 0x1c; any other ID: nothing
+	  written) and reads the register again. The register
+	  as found and as left is in the OTA version reply (telink_ota.py
+	  info). The image does not lock the flash again.
+
+config TLSR_BOOT_GUARD_CHORD
+	bool "A key chord held at power-on goes back to the other image"
+	depends on TLSR_BOOT_GUARD_EARLY
+	help
+	  In the early stage, before the kernel, the two keys of the chord
+	  (each a row and a column of the kscan matrix, read with active-low
+	  rows by the column driven low and the row on its pull-up, with
+	  active-high rows by the column driven high and the row on its
+	  pull-down) are
+	  read three times 1 ms apart; held, the image in the other slot is
+	  made to boot, whatever the count. So an image whose USB does not
+	  work, or that no host tool can reach, can still be left without a
+	  tool, as long as it gets this far.
+
+if TLSR_BOOT_GUARD_CHORD
+
+config TLSR_BOOT_GUARD_CHORD_ROW
+	int "The first key's row (index into the kscan node's row-gpios)"
+
+config TLSR_BOOT_GUARD_CHORD_COL_A
+	int "The first key's column (index into col-gpios)"
+
+config TLSR_BOOT_GUARD_CHORD_ROW_B
+	int "The second key's row (index into row-gpios)"
+	default TLSR_BOOT_GUARD_CHORD_ROW
+
+config TLSR_BOOT_GUARD_CHORD_COL_B
+	int "The second key's column (index into col-gpios)"
+
+config TLSR_BOOT_GUARD_CHORD_AFTER_COUNT
+	bool "Read the chord after this boot is counted"
+	help
+	  The chord is read after count_boot() instead of before it. Before
+	  the first count a hang cannot be recovered (the early watchdog
+	  resets into the same code, and nothing counts); after it, a boot of
+	  an unconfirmed image is counted, and the boot guard goes back after
+	  TLSR_BOOT_GUARD_RESETS of them. So a board whose chord code (its
+	  pins and polarity) has not run on hardware keeps it out of the
+	  window that nothing recovers, and a new image that hangs there is
+	  left before it is confirmed. A confirmed image counts no boot, so
+	  for it the order makes no difference. The outcome of a held chord
+	  is the same: the revert clears the count (tlsr_boot_guard_forget()),
+	  and a boot the firmware asked for still does not read it.
+
+endif # TLSR_BOOT_GUARD_CHORD
+
+config TLSR_BOOT_GUARD_COUNT_ALL_BOOTS
+	bool "Count every boot of an unconfirmed image the firmware did not ask for, not only watchdog resets"
+	default y
+	help
+	  Until the host confirms the image, every boot that is not a reboot
+	  this firmware asked for (tlsr_reboot()) adds one to the counter:
+	  watchdog resets, power-ons and other resets alike. So
+	  TLSR_BOOT_GUARD_RESETS power-ons in a row go back to the other image
+	  as well: a new image that runs but does not work (USB that does not
+	  work, no keys) can be left by cycling the power, with no tool.
+	  Without this option only watchdog resets count. A confirmed image
+	  counts no boot either way (its way back is the power-on chord or
+	  &prev_fw).
+
+choice TLSR_BOOT_GUARD_HEALTHY
+	prompt "What makes a boot of a confirmed image healthy (clears the boot count)"
+	default TLSR_BOOT_GUARD_HEALTHY_USB if ZMK_USB && !ZMK_BLE
+	default TLSR_BOOT_GUARD_HEALTHY_UPTIME
+	help
+	  A boot that is not healthy counts, and after TLSR_BOOT_GUARD_RESETS
+	  of them in a row the image in the other slot boots. Until the host
+	  has confirmed the image (the OTA report's 0xff03, telink_ota.py
+	  confirm, taken only after the flash test passed in the same boot and
+	  while the other slot's image checks: src/tlsr_usb_ota.c) nothing
+	  but that confirm clears the count, so
+	  a new image must be confirmed within TLSR_BOOT_GUARD_RESETS boots or the
+	  keyboard goes back. The confirmation stays with the image; from then
+	  on no boot is counted, and this rule only clears a count a flash
+	  fault could have left.
+
+config TLSR_BOOT_GUARD_HEALTHY_USB
+	bool "The host configured USB"
+	depends on ZMK_USB && !ZMK_BLE
+	help
+	  The counter of a confirmed image is cleared when the host configures
+	  the USB device (SET_CONFIGURATION). Not for
+	  Zephyr's BLE (ZMK_BLE), where a session may never touch USB. With
+	  the own stack (TLSR_BLE) a bonded central's encrypted link with the
+	  keyboard report's notifications on marks the boot healthy too
+	  (src/ble/ble_zmk.c).
+
+config TLSR_BOOT_GUARD_HEALTHY_UPTIME
+	bool "TLSR_BOOT_GUARD_HEALTHY_MS of running"
+	help
+	  The counter is cleared after that much uptime, whatever the image
+	  does; a running image whose USB does not work counts as healthy.
+
+endchoice
+
+config TLSR_BOOT_GUARD_HEALTHY_MS
+	int "Uptime that clears the reset counter (ms)"
+	default 15000
+	help
+	  Used with TLSR_BOOT_GUARD_HEALTHY_UPTIME.
+
+config TLSR_BOOT_GUARD_WATCHDOG_MS
+	int "Watchdog period (ms)"
+	default 4000
+
+config TLSR_BOOT_GUARD_SCLK_HZ
+	int "System clock that Timer2 counts (Hz)"
+	default 48000000
+	help
+	  Used only when the guard cannot measure the clock at boot. The
+	  TLSR8278 SoC code sets register 0x66 to 0x20: FHS, the 48 MHz
+	  clock doubled from the 24 MHz crystal while 0x70[0] and 0x66[7]
+	  are 0 (DS-TLSR8278 4.2).
+
+config TLSR_BOOT_GUARD_INIT_PRIORITY
+	int "Initialization priority (POST_KERNEL)"
+	default 60
+	help
+	  After the flash driver (FLASH_INIT_PRIORITY).
+
+endif # TLSR_BOOT_GUARD
+
+config ZMK_BEHAVIOR_PREV_FIRMWARE
+	bool
+	default y
+	depends on DT_HAS_ZMK_BEHAVIOR_PREV_FIRMWARE_ENABLED && FLASH
+	select TLSR_SLOTS
+
+config CIDOO_DETENT_ENCODER
+	bool "Knob counted per detent"
+	default y
+	depends on DT_HAS_CIDOO_DETENT_ENCODER_ENABLED
+	depends on GPIO && SENSOR
+	help
+	  Driver for "cidoo,detent-encoder" (src/detent_encoder.c).
+
+config CIDOO_LED_KEY_MATRIX
+	bool "Key matrix and RGB backlight on shared columns (the Cidoo V21)"
+	default y
+	depends on DT_HAS_CIDOO_LED_KEY_MATRIX_ENABLED
+	depends on SOC_TLSR8278 && GPIO
+	select ZMK_DEBOUNCE
+	select USB_DC_TELINK_B87_EXTERNAL_POLL if USB_DC_TELINK_B87
+	help
+	  Driver for "cidoo,led-key-matrix" and "cidoo,led-key-matrix-backlight"
+	  (src/led_key_matrix.c): Timer1 lights the backlight a column at a
+	  time, 500 us each, and scans the keys in the frame's last slot. It
+	  owns Timer1 and PWM0-PWM5, and polls the USB controller once a
+	  millisecond from Timer1's interrupt (USB_DC_TELINK_B87_EXTERNAL_POLL).
+
+menu "US-JIS substitution"
+
+config ZMK_USJIS
+	bool "US-JIS substitution"
+	default y
+	depends on DT_HAS_ZMK_BEHAVIOR_USJIS_ENABLED
+	depends on !ZMK_SPLIT || ZMK_SPLIT_ROLE_CENTRAL
+	help
+	  src/usjis.c: substitutes the symbol input of the US layout so that a
+	  host fixed to the Japanese keyboard layout types what the US keycaps
+	  show. &usjis USJIS_TOG / USJIS_ON / USJIS_OFF switches it (ZMK Studio
+	  lists the three). See docs/usjis-substitution.md.
+
+if ZMK_USJIS
+
+config ZMK_USJIS_DEFAULT_ENABLED
+	bool "Mode enabled when no valid setting is stored"
+	help
+	  The spec defaults to DISABLED on first boot.
+
+config ZMK_USJIS_MAX_ENTRIES
+	int "Press record capacity"
+	default 16
+	range 8 255
+	help
+	  Keys held at once that the module records (20 bytes of RAM each). A
+	  press beyond it passes through unsubstituted and a mode change waits
+	  for its release as for any held key (spec section 7); 16 is more
+	  than two hands hold.
+
+config ZMK_USJIS_LAYER_MASK
+	hex "Layers on which substitution applies (bit mask, 0 = all)"
+	default 0x0
+	help
+	  Substitution happens only while at least one of these layers is
+	  active.
+
+config ZMK_USJIS_LAYER_EXCLUDE_MASK
+	hex "Layers on which substitution never applies (bit mask)"
+	default 0x0
+	help
+	  No substitution while any of these layers is active: the Mac
+	  layers of a keymap whose Mac mode is a layer over the Win base
+	  layer (macOS chooses the layout per keyboard).
+
+config ZMK_USJIS_SETTINGS_SAVE_DELAY_MS
+	int "Delay before an applied mode is written to settings (ms)"
+	default 2000
+	help
+	  Coalesces repeated toggles into one flash write. ZMK's own
+	  CONFIG_ZMK_SETTINGS_SAVE_DEBOUNCE (60 s) is too long: a power cycle
+	  within that time would lose the mode.
+
+config ZMK_USJIS_LOG_LEVEL
+	int "Log level of the usjis module"
+	default 1
+	help
+	  Zephyr log level (0 none, 1 error, 2 warning, 3 info, 4 debug).
+
+endif
+
+endmenu
+
+config TLSR_USB_POLL_TIMER
+	bool "The 1 ms USB poll from Timer1's interrupt"
+	depends on SOC_TLSR8278 && USB_DC_TELINK_B87 && !CIDOO_LED_KEY_MATRIX
+	select USB_DC_TELINK_B87_EXTERNAL_POLL
+	help
+	  src/usb_poll_timer.c: Timer1 interrupts every millisecond and polls
+	  the USB controller (USB_DC_TELINK_B87_EXTERNAL_POLL), instead of the
+	  USB driver's kernel timer, whose timeout processing in the system
+	  timer interrupt costs about ten times the poll. It owns Timer1. With
+	  TLSR_USB_WIRED_POSITION_ONLY it starts when USB is enabled,
+	  otherwise at init.
+
+config LED_KEY_MATRIX_EFFECTS
+	bool "Backlight effects of the Cidoo V21 (wave, breathe, light)"
+	default y
+	depends on DT_HAS_ZMK_BACKLIGHT_EFFECTS_ENABLED && DT_HAS_CIDOO_LED_KEY_MATRIX_ENABLED
+	select LED_STRIP
+	select ZMK_LOW_PRIORITY_WORK_QUEUE
+	help
+	  src/led_key_matrix_effects.c for "zmk,backlight-effects": the wave,
+	  breathe and light effects, colours, brightness levels and speeds on
+	  the backlight of a "cidoo,led-key-matrix", stepped by its interrupt,
+	  instead of ZMK's underglow (leave ZMK_RGB_UNDERGLOW off). The keymap
+	  reaches them through "zmk,behavior-backlight-rgb" with ZMK's RGB
+	  commands.
+
+config BATTERY_ADC
+	bool "Battery measurement of the Cidoo V21"
+	default y
+	depends on DT_HAS_CIDOO_BATTERY_ENABLED && SOC_TLSR8278 && GPIO
+	help
+	  src/battery_adc.c for "cidoo,battery": the ADC reading, the
+	  percentage and the charger pins, for the BLE stack's battery level
+	  and the OTA receiver's battery command (0xff06, telink_ota.py
+	  battery).
+
+config BACKLIGHT_SAVE
+	bool "Keep the backlight settings in flash"
+	default y
+	depends on (LED_KEY_MATRIX_EFFECTS && FLASH) || (LED_DRIVER_SPI && SETTINGS)
+	help
+	  The setting is set again at boot. LED_KEY_MATRIX_EFFECTS: on/off,
+	  the effect, level, speed, colour and white, kept in the storage
+	  partition's third sector (0x62000 on the Cidoo boards; 0x41000,
+	  where the original firmware keeps its own, is not touched).
+	  LED_DRIVER_SPI: on/off, the effect, level and colour, one
+	  record of two octets in the settings ("bl/v75").
+
+config BACKLIGHT_SAVE_DELAY_MS
+	int "Milliseconds after the last backlight change before it is kept"
+	default 3000
+	range 0 30000
+	depends on BACKLIGHT_SAVE
+	help
+	  Short, since unplugging the keyboard in the wired position cuts its
+	  power. LED_KEY_MATRIX_EFFECTS: each change a record of 16 octets,
+	  a sector erase every 256.
+
+config BACKLIGHT_BOOT_KEYS_MS
+	int "Backlight commands ignored for this long after boot, in ms"
+	default 3000
+	depends on LED_KEY_MATRIX_EFFECTS || LED_DRIVER_SPI
+	help
+	  Keys held at power-on are the recovery chord's (V21: Fn + KP-,
+	  brightness down), not backlight commands: with the setting kept,
+	  tries that miss the boot guard's window would dim it step by step.
+
+config TLSR_KEPT_LAYER
+	int "A layer whose on/off state is kept over a boot (-1: none)"
+	default -1
+	depends on SETTINGS
+	help
+	  src/layer_keep.c: the layer's state goes to the settings a second
+	  after it changes, and comes back once the settings are loaded at
+	  boot. For a Windows/Mac mode as a layer (&to 2 / &to 0).
+
+config TLSR_BOOT_GUARD_FEEDER_STACK_SIZE
+	int "The watchdog feeder thread's stack, in octets"
+	default 512
+	depends on TLSR_BOOT_GUARD
+	help
+	  The thread that feeds the watchdog every quarter period
+	  (tlsr_boot_guard.c): 184 octets deep at most in the emulator.
+
+config TLSR_BOOT_GUARD_FEEDER_PRIO_ABOVE_LOWEST
+	int "The watchdog feeder's priority: this many levels above the lowest application priority"
+	default 0
+	range 0 4
+	depends on TLSR_BOOT_GUARD
+	help
+	  The feeder (tlsr_boot_guard.c) feeds the watchdog while every thread
+	  above its priority lets it run; a thread there that hangs resets the
+	  chip. 0: the lowest application priority, shared with background
+	  threads such as ZMK Studio's RPC thread, which then rely on time
+	  slicing, and Zephyr restarts a thread's slice whenever a higher
+	  priority one preempts it. 1: one level above them, so a long
+	  background job (Studio encoding a large keymap) never keeps the
+	  feeder from running; a hang at the lowest priority is then not
+	  caught.
+
+config ZMK_KEYMAP_SMALL_POSITION_TABLES
+	bool "ZMK's per-position keymap tables in one octet a position"
+	help
+	  ZMK keeps, for every key position, the layer state at its press
+	  (app/src/keymap.c) and, with physical layouts, the position's place
+	  in the stock layout (app/src/physical_layouts.c), each in 32 bits.
+	  With this, each takes one octet: for keymaps of at most eight layers
+	  and fewer than 255 positions (asserted at build). Three octets of
+	  RAM a position for each table.
+
+config LED_DRIVER_SPI
+	bool "A backlight through two SPI LED driver chips (the V75 Pro, the V65 V3)"
+	depends on (BOARD_CIDOO_V75PRO || BOARD_CIDOO_V65V3) && ZMK_KSCAN_MATRIX_POLLING
+	help
+	  src/led_driver_spi.c: the key LEDs through two driver chips of 192
+	  PWM channels each (the board's led_driver_table.h says which channel
+	  drives what; the V75 Pro's 89 LEDs and the three left of its knob,
+	  the V65 V3's 66), without a buffer of LED values: one colour, the wheel's
+	  colours across the columns, or one colour breathing. The setting is
+	  kept over a boot with BACKLIGHT_SAVE. The commands are ZMK's RGB ones through
+	  &kbl (zmk,behavior-backlight-rgb): toggle, effect, colour (hue),
+	  brightness (six levels, the lowest dark).
+
+if LED_DRIVER_SPI
+
+config LED_DRIVER_SPI_EFFECT
+	int "The effect at boot: 0 one colour, 1 the wheel across the columns, 2 breathing"
+	range 0 2
+	default 0
+
+config LED_DRIVER_SPI_COLOUR
+	int "The colour at boot: 0 white, 1 red, 2 orange, 3 yellow, 4 green, 5 cyan, 6 blue, 7 purple"
+	range 0 7
+	default 0
+
+config LED_DRIVER_SPI_LEVEL
+	int "The brightness level at boot, 0 (dark) to 5"
+	range 0 5
+	default 2
+
+config LED_DRIVER_SPI_START_MS
+	int "The first frame this long after boot, in ms"
+	default 500
+
+endif
+
+config ZMK_BEHAVIOR_BACKLIGHT_RGB
+	bool
+	default y
+	depends on DT_HAS_ZMK_BEHAVIOR_BACKLIGHT_RGB_ENABLED && (LED_KEY_MATRIX_EFFECTS || LED_DRIVER_SPI)
+
+config TLSR_CPU_LEFT
+	bool
+	default y if TLSR_USB_OTA || TLSR_STATUS_DISPLAY
+	help
+	  src/tlsr_cpu_left.c: the CPU the lowest-priority thread gets over
+	  100 ms, measured in the calling thread (the version answer's figure,
+	  the status display's).
+
+config TLSR_STATUS_DISPLAY
+	bool "A status display on the keyboard's LEDs (&sts)"
+	default y
+	depends on DT_HAS_ZMK_BEHAVIOR_STATUS_DISPLAY_ENABLED
+	help
+	  src/status_display.c, src/behavior_status.c: the &sts key
+	  (zmk,behavior-status-display) shows the keyboard's state on its LEDs for
+	  TLSR_STATUS_DISPLAY_MS - the battery, the CPU left over, the link
+	  modes and the Bluetooth profiles - gathered from the battery
+	  measurement, the BLE and 2.4G stacks and a 100 ms measurement on
+	  ZMK's low-priority work queue. A board's part decides which LEDs
+	  show what (STATUS_DISPLAY_CIDOO_V75PRO, STATUS_DISPLAY_CIDOO_V65V3 in the board's Kconfig).
+
+config TLSR_STATUS_DISPLAY_MS
+	int "How long the status display shows (ms)"
+	default 3000
+	range 500 30000
+	depends on TLSR_STATUS_DISPLAY
+
+config TLSR_HOT_TEXT_PAD
+	int "Bytes left free after a board's hot text"
+	default 0
+	help
+	  A board's hot_text.ld ends with this many unused bytes, which moves
+	  everything linked after the hot text to other lines of the flash
+	  instruction cache (64 lines of 32 bytes, direct-mapped): the GPIO
+	  driver's API table and the ports' device structures among it, which
+	  the key scan reads at every GPIO call together with the configs the
+	  hot text holds. A multiple of 32 with which tc32/scripts/hot_slots.py
+	  finds none of them in a cache slot of another or of the scan's code;
+	  hot_slots.py --pads names the values that would do for a build.
+
+config TLSR_HOT_TEXT_CHECK
+	bool "Fail the build when the key scan's constants share a cache slot"
+	help
+	  tc32/scripts/build.sh runs tc32/scripts/hot_slots.py on the linked
+	  image and fails when a constant the key scan reads lies in a cache
+	  slot of the scan's code or of another of these constants. For the
+	  builds whose TLSR_HOT_TEXT_PAD is kept right.
+
+config TLSR_USB_SUSPEND
+	bool "Suspend the chip while the host suspends USB"
+	default y
+	depends on SOC_TLSR8278 && ZMK_USB
+	depends on DT_HAS_ZMK_KSCAN_GPIO_MATRIX_ENABLED || DT_HAS_CIDOO_LED_KEY_MATRIX_ENABLED
+	select SOC_TLSR8278_SUSPEND
+	help
+	  src/usb_suspend.c: after TLSR_USB_SUSPEND_DELAY_MS of USB suspend,
+	  the matrix columns are driven active, the rows wake the chip on a change,
+	  and the chip suspends until a key, the host's resume or
+	  TLSR_USB_SUSPEND_WAKE_MS. A key pressed while the bus is suspended
+	  asks the host to wake up (remote wakeup, if the host allows it).
+
+if TLSR_USB_SUSPEND
+
+config TLSR_USB_SUSPEND_DELAY_MS
+	int "USB suspend before the chip suspends (ms)"
+	default 8000
+	help
+	  How long the USB bus must stay suspended before src/usb_suspend.c
+	  puts the chip into suspend.
+
+config TLSR_USB_SUSPEND_WAKE_MS
+	int "Timer wake while suspended (ms)"
+	default 1000
+	help
+	  At most 268,000: the timer driver's tick difference wraps after
+	  2^32 system timer ticks (16 MHz).
+
+config TLSR_USB_SUSPEND_HOLDOFF_MS
+	int "No suspend before this uptime (ms)"
+	default 20000
+	help
+	  Longer than TLSR_BOOT_GUARD_HEALTHY_MS, so a boot is counted healthy
+	  before the chip first suspends.
+
+endif # TLSR_USB_SUSPEND
+
+config TLSR_BLE
+	bool "Own BLE stack (experimental)"
+	depends on SOC_TLSR8278 && FLASH && GPIO && !BT
+	depends on DT_HAS_TELINK_B87_RADIO_ENABLED
+	select SOC_TLSR8278_RADIO
+	select TC32_AES128
+	select TC32_RNG
+	select TC32_P256
+	help
+	  src/ble: an own BLE peripheral stack on the TLSR8278 radio
+	  (zephyr-tc32's radio driver, SOC_TLSR8278_RADIO). In the
+	  BT position of the mode switch ("cidoo,mode-switch"): advertising,
+	  connections (channel selection #1, the LL control procedures a
+	  peripheral must answer), LL encryption with AES-CCM on the AES
+	  block, L2CAP, SMP LE Secure Connections pairing (Passkey Entry or
+	  Just Works, TLSR_BLE_SC_PASSKEY) with bonding (bonds in the storage
+	  partition), and HID over GATT for ZMK's keyboard and
+	  consumer reports (ZMK's BLE endpoint). Profiles on the channel
+	  keys, the battery level, deep sleep while no host connects. Every
+	  flash write holds the radio off.
+
+if TLSR_BLE
+
+config TLSR_BLE_SC_PASSKEY
+	bool "Pairing by Passkey Entry: the keyboard types the passkey the host shows"
+	default y
+	help
+	  Secure Connections with Passkey Entry, which protects against a
+	  man in the middle: the host shows a passkey of up to six digits
+	  and it is typed on the keyboard (the number row or the keypad),
+	  then Enter; Backspace takes a digit back, Escape gives the pairing
+	  up. The HID service and the notifications answer only over a link
+	  encrypted with a key from such a pairing. Off: Just Works, with
+	  no protection against a man in the middle; any host that connects
+	  can pair.
+
+config TLSR_BLE_CONN_PARAM_DELAY_MS
+	int "Milliseconds after a connection before the parameter request (-1: none)"
+	default 1000
+	help
+	  An L2CAP Connection Parameter Update Request with the
+	  TLSR_BLE_CONN_* values. It waits while the link's encryption is
+	  being started. GAP's Peripheral Preferred Connection Parameters
+	  characteristic gives the same values.
+
+config TLSR_BLE_CONN_INTERVAL
+	int "Connection interval asked for, in 1.25 ms units"
+	default 6
+	range 6 3200
+
+config TLSR_BLE_CONN_LATENCY
+	int "Peripheral latency asked for, in connection events"
+	default 44
+	range 0 499
+
+config TLSR_BLE_CONN_TIMEOUT
+	int "Supervision timeout asked for, in 10 ms units"
+	default 300
+	range 10 3200
+
+config TLSR_BLE_DIS_MANUFACTURER
+	string "Manufacturer Name String in the Device Information service"
+	default ""
+	help
+	  Empty: none. A name adds the characteristic after the PnP ID,
+	  which moves every later attribute handle by two; hosts bonded
+	  before learn of it from Service Changed.
+
+config TLSR_BLE_DIS_MANUFACTURER_ON
+	def_bool TLSR_BLE_DIS_MANUFACTURER != ""
+
+config TLSR_BLE_CONN_FALLBACK
+	bool "A second connection parameter request after a rejection"
+	default y
+	help
+	  When the central rejects the TLSR_BLE_CONN_* request, the keyboard
+	  asks once more, 30 s later (TGAP(conn_param_timeout), Core Vol 3
+	  Part C 9.3.9.2), with the TLSR_BLE_CONN_FALLBACK_* values. The
+	  defaults (15 ms, latency 22, 6 s) are inside the limits of Apple's
+	  Accessory Design Guidelines (R31, 58.6: interval min a multiple of
+	  15 ms and at least 15 ms, max equal to min at 15 ms, latency 30 or
+	  less, timeout 6-18 s and more than three times
+	  max x (latency + 1), max x (latency + 1) 6 s or less; the older
+	  QA1931 also asks for max x (latency + 1) 2 s or less and a timeout
+	  of 6 s at most). Apple hosts reject the 7.5 ms request; without the
+	  second request such a link keeps the host's parameters.
+
+config TLSR_BLE_CONN_FALLBACK_INTERVAL
+	int "Connection interval of the fallback request, in 1.25 ms units"
+	default 12
+	range 6 3200
+	depends on TLSR_BLE_CONN_FALLBACK
+
+config TLSR_BLE_CONN_FALLBACK_LATENCY
+	int "Peripheral latency of the fallback request, in connection events"
+	default 22
+	range 0 499
+	depends on TLSR_BLE_CONN_FALLBACK
+
+config TLSR_BLE_CONN_FALLBACK_TIMEOUT
+	int "Supervision timeout of the fallback request, in 10 ms units"
+	default 600
+	range 10 3200
+	depends on TLSR_BLE_CONN_FALLBACK
+
+config TLSR_BLE_DEEP_SLEEP
+	bool "Deep sleep while no host connects"
+	default y
+	select SOC_TLSR8278_SUSPEND
+	select SOC_TLSR8278_DEEP_SLEEP
+	help
+	  src/ble/ble_sleep.c: after TLSR_BLE_RECONNECT_TIMEOUT_S of advertising
+	  to a bonded host, TLSR_BLE_PAIRING_TIMEOUT_S of discoverable
+	  advertising, or at 0 % on battery, the chip goes into deep sleep; a
+	  key or the mode switch wakes it (a boot), and on the V21 power in as
+	  well (not on the V75 Pro). Not while ZMK's USB is connected.
+
+config TLSR_BOARD_DEEP_SLEEP_PADS
+	bool "The board sets every pad for the deep sleep"
+	depends on TLSR_BLE_DEEP_SLEEP
+	help
+	  ble_deep_sleep() calls the board's board_deep_sleep_pads() instead
+	  of its own setup (every column at its active level through a pull,
+	  the rows and the switch as wake pads), for a board that needs
+	  another state there: on the V75 Pro the columns go to 0 through
+	  pull-downs, the rows wake on low, and the switch's common pin is
+	  driven (cidoo_v75pro/deep_sleep_pads.c).
+
+config TLSR_GPIO_MATRIX_SLEEP
+	bool "The low-power state of a key matrix that ZMK's kscan-gpio-matrix polls"
+	default y
+	depends on TLSR_BLE && SOC_TLSR8278_SUSPEND && !CIDOO_LED_KEY_MATRIX
+	depends on ZMK_KSCAN_GPIO_MATRIX && ZMK_KSCAN_MATRIX_POLLING
+	select USB_DC_TELINK_B87_SLOW_POLL if USB_DC_TELINK_B87 && !USB_DC_TELINK_B87_EXTERNAL_POLL
+	help
+	  src/gpio_matrix_sleep.c, key_matrix_sleep() for the BLE and 2.4G
+	  links' low-power states on a board whose keys ZMK's
+	  "zmk,kscan-gpio-matrix" polls (the V75 Pro): the poll stopped,
+	  every column at its active level and the rows as wake pads; then
+	  the pads off and the poll started again.
+
+config TLSR_BLE_LOW_POWER
+	bool "A low-power state while connected and idle"
+	default y
+	depends on SOC_TLSR8278_SUSPEND && TICKLESS_KERNEL
+	depends on CIDOO_LED_KEY_MATRIX || TLSR_GPIO_MATRIX_SLEEP
+	select SOC_TLSR8278_IDLE_SUSPEND
+	help
+	  src/ble/ble_sleep.c: after TLSR_BLE_IDLE_S with no key on a ready
+	  link (and no USB host), the matrix sleeps, the link uses its
+	  peripheral latency and the chip suspends between the events it
+	  attends (SOC_TLSR8278_IDLE_SUSPEND); a key wakes it.
+
+config TLSR_BLE_IDLE_S
+	int "Seconds with no key before the low-power state"
+	default 300
+	depends on TLSR_BLE_LOW_POWER
+
+config TLSR_BLE_RECONNECT_TIMEOUT_S
+	int "Seconds of advertising to a bonded host before deep sleep"
+	default 20
+	depends on TLSR_BLE_DEEP_SLEEP
+
+config TLSR_BLE_PAIRING_TIMEOUT_S
+	int "Seconds of discoverable advertising before deep sleep"
+	default 60
+	depends on TLSR_BLE_DEEP_SLEEP
+
+config TLSR_BLE_IGNORE_MODE_SWITCH
+	bool "Advertise in every position of the mode switch (tests)"
+
+config TLSR_USB_WIRED_POSITION_ONLY
+	bool "USB only in the wired position of the mode switch"
+	depends on ZMK_USB && !TLSR_BLE_IGNORE_MODE_SWITCH
+	select ZMK_USB_ENABLE_ON_REQUEST
+	help
+	  src/ble/ble.c enables USB (zmk_usb_enable()) once the mode switch
+	  reads wired at boot, and never in the BT or 2.4G positions: the
+	  cable there only brings power, and the keyboard does not attach to
+	  the bus. With TLSR_USB_POLL_TIMER its poll starts then too.
+
+config TLSR_USB_ON_REQUEST
+	bool "A key brings USB up in the BT and 2.4G positions (&usb_on)"
+	default y
+	depends on TLSR_USB_WIRED_POSITION_ONLY && DT_HAS_ZMK_BEHAVIOR_USB_REQUEST_ENABLED
+	help
+	  src/behavior_usb_request.c: the &usb_on key (zmk,behavior-usb-request)
+	  enables USB, with its poll, in a position of the mode switch that
+	  has none at boot, until the power goes or the switch moves. It is
+	  for the host tools there (the update receiver's information, the
+	  links' counters, ZMK Studio): HID reports go over USB only when the
+	  switch read wired at boot (zmk_usb_reports_allowed()), so the keys
+	  stay on the radio link. With a host on the cable the keyboard does
+	  not go to deep sleep, and USB and its poll take CPU from the link,
+	  so it is not left on. In the wired position the key does nothing.
+
+config TLSR_BLE_MODE_FROM_POWER_IN
+	bool "The mode from the cable's power and a link chosen by key, on a board without a mode switch"
+	depends on BATTERY_ADC && !TLSR_BLE_IGNORE_MODE_SWITCH
+	help
+	  A board whose power switch only turns the battery on (the V65 V3):
+	  the mode comes from the cable's power (the battery node's power-in
+	  pin) and the link chosen by key (&link_mode, kept with the BLE
+	  profiles): with power in, USB or the chosen wireless link; without
+	  it, the wireless link (USB falls back to BLE; choosing USB without the
+	  cable is ignored). Read at boot as a mode
+	  switch is and watched the same way: a change of either reboots the
+	  chip into the new mode.
+
+config TLSR_BLE_SWITCH_POLL_MS
+	int "Period of the mode switch watch with power in (ms)"
+	default 50
+	range 20 500
+	help
+	  src/ble/ble.c reads the mode switch this often while power is in
+	  (every second on the battery), and reboots into the position it
+	  moved to. Each read turns the switch pins' pull-ups on (and drives
+	  the switch's common pin, where a board has one) and runs code that,
+	  on a board with a small instruction cache, misses it: a longer
+	  period costs less CPU and only delays the reboot.
+
+config TLSR_BLE_TX_POWER_DEFAULT
+	hex "TX power level when the per-unit byte 0x76009 is blank"
+	default 0x2b
+	help
+	  Bit 7 goes to radio register 0x1225 bit 6, bits 5:0 to 0x1226 bit 7
+	  and 0x1227 bits 4:0 (tlsr_radio_set_power_level(); not documented).
+
+config TLSR_P24
+	bool "The Cidoo keyboards' proprietary 2.4G link in the switch's 2.4G position"
+	depends on TLSR_BLE && TLSR_BLE_DEEP_SLEEP
+	depends on CIDOO_LED_KEY_MATRIX || TLSR_GPIO_MATRIX_SLEEP
+	help
+	  src/ble/p24.c, run from the BLE thread when the mode switch is in the
+	  2.4G position: the link to the Cidoo USB dongle (pairing on
+	  &p24_pair, report records, the dongle's ACKs and commands), in the
+	  radio's private 2M mode (zephyr-tc32's tlsr_radio.c). The dongle ID is
+	  kept in the storage partition's fourth sector.
+
+if TLSR_P24
+
+config TLSR_P24_AUTO_RX
+	bool "The 2.4G link's receive started by the radio itself after each packet"
+	help
+	  Each packet goes out with the radio's send-then-receive command
+	  (0xf00 = 0x87, the window in 0xf0a with 0xf03 bit 2), so the receive
+	  starts a fixed time after the packet's end. Without it the RF
+	  interrupt starts the receive when it sees the packet sent, later by
+	  however long the interrupt had to wait. With it, a frame whose interrupt
+	  has not run by the exchange's end is still taken.
+
+config TLSR_CRASH_LOG
+	bool "A record of what ran before a reset the firmware did not ask for"
+	depends on TLSR_USB_OTA
+	help
+	  src/tlsr_crash_log.c: every 100 ms the interrupted thread and PC in a
+	  ring of 16, and a fatal error's reason, thread, PC and LR, in RAM a
+	  watchdog reset keeps; read after the reset with telink_ota.py crash
+	  (command 0xff0d). For finding a hang or a crash on the unit.
+
+config TLSR_P24_DIAG
+	bool "Counters of the 2.4G link, read over the USB update interface"
+	depends on TLSR_USB_OTA
+	help
+	  For finding why a link does not come up: what the RF interrupt saw
+	  (packets sent, frames received, their checks, when they came after
+	  the packet's start), the last frame received, and the per-unit
+	  values the link uses. telink_ota.py p24 reads them (command 0xff0b).
+
+config TLSR_P24_IDLE_S
+	int "Seconds with no key before the linked 2.4G link stops its traffic and the chip suspends"
+	default 300
+
+config TLSR_P24_SLEEP_S
+	int "Seconds with no key before a linked 2.4G link goes to deep sleep"
+	default 1800
+
+config TLSR_P24_PAIR_S
+	int "Seconds of 2.4G pairing beacons before deep sleep"
+	default 60
+
+config TLSR_P24_RECONNECT_S
+	int "Seconds with no key and no dongle answer before deep sleep"
+	default 20
+
+endif # TLSR_P24
+
+config TLSR_BLE_ADV_INTERVAL_MIN
+	int "Shortest advertising interval (0.625 ms units)"
+	default 32
+
+config TLSR_BLE_ADV_INTERVAL_MAX
+	int "Longest advertising interval (0.625 ms units)"
+	default 40
+	help
+	  32-40: 20-25 ms.
+
+config TLSR_BLE_LL_SUBVERSION
+	hex "SubVersNr in LL_VERSION_IND"
+	default 0x0001
+
+config TLSR_BLE_STACK_SIZE
+	int "BLE thread stack size"
+	default 1152 if TC32_P256_PKE
+	default 1792
+	help
+	  The thread runs the Secure Connections pairing. In the whole-keyboard
+	  emulator (CONFIG_INIT_STACKS, the stack read back after a Passkey
+	  Entry pairing) it reaches 792 octets with P-256 on the public key
+	  engine (TC32_P256_PKE) and about 1,300 with P-256 in software
+	  (TC32_P256_SOFT). Each default keeps the peak below three quarters
+	  of the stack.
+
+config TLSR_BLE_REPORT_QUEUE
+	int "HID reports ZMK can queue for the BLE thread"
+	default 8
+
+config TLSR_BLE_THREAD_PRIORITY
+	int "BLE thread priority"
+	default 5
+
+config TLSR_BLE_RNG_COLLECT
+	bool "Collect for tc32_rng before advertising"
+	default y
+	help
+	  The thread calls tc32_rng_collect() before each advertising run: on
+	  a boot without a seed record the generator collects there until it
+	  is ready (about 40 ms from the 32 kHz jitter and the ADC's noise),
+	  so that a pairing's keys and a reconnection's session values are
+	  there when asked for. When the collection gives up (its time limit,
+	  or a 32 kHz count that stands still while the ADC credits nothing)
+	  the thread does not advertise and collects again every second, the
+	  advertising time limits running on. Off (for tests of
+	  the refusal): the thread advertises anyway, and a request while the
+	  generator is not ready fails, and the pairing or encryption start
+	  with it.
+
+endif # TLSR_BLE
+
+config TLSR_RNG_STORE
+	bool "tc32_rng's seed record and device ID on the flash"
+	default y
+	depends on TC32_RNG && TLSR_SPI_FLASH && $(dt_nodelabel_exists,rng_seed_partition)
+	help
+	  src/tlsr_rng_store.c: tc32_rng_seed_load() and tc32_rng_seed_store()
+	  on a log of records in the board's rng_seed_partition (two 4 KB
+	  sectors; a store is a page program, an erase every 127 stores), and
+	  tc32_rng_device_id() from the flash's 128-bit unique ID (command
+	  0x4b).
+
+config TLSR_PKE_TEST
+	bool "The P-256 engine's known answers over the USB update interface (measurement images only)"
+	depends on TLSR_USB_OTA && TC32_P256_PKE
+	help
+	  src/tlsr_pke_test.c: the debug key pair of the Bluetooth Core
+	  specification, a second key pair and their ECDH shared secret, a
+	  point off the curve and a scalar of 0 on the public key engine, each
+	  timed, read with telink_ota.py pke-test (command 0xff0f).
+
+config TLSR_RNG_MEASURE
+	bool "Raw samples of tc32_rng's sources over the USB update interface (measurement images only)"
+	depends on TLSR_USB_OTA && TC32_RNG_ADC
+	select TC32_RNG_JITTER_DUMP
+	select TC32_RNG_ADC_DUMP
+	select TC32_RNG_READINESS
+	help
+	  src/tlsr_rng_measure.c: the first 1000 jitter samples and 1001 ADC
+	  codes after each boot (the restart batch), and runs of one source's
+	  samples on request, read with telink_ota.py rng-samples (command
+	  0xff0e), for assessing the sources' min-entropy with NIST SP 800-90B's
+	  estimators; and the generator's readiness after a collect, with the
+	  ADC windows credited and refused. Never in an image for daily use or
+	  for publication.
+
+config TLSR_RNG_MEASURE_BYTES
+	int "The sample buffer, in octets"
+	depends on TLSR_RNG_MEASURE
+	default 3072
+	range 3002 16384
+	help
+	  The restart batch takes 3002 octets; a take fills the buffer (a
+	  jitter sample one octet, an ADC code two).
+
+config TLSR_BOND_LOG
+	bool
+	default y if TLSR_BLE || TLSR_USB_OTA
+	depends on FLASH
+	help
+	  src/ble/ble_bond.c: the BLE bonds and the profile state in the first
+	  two sectors of the storage partition, and the flash test behind the
+	  host's confirm (tlsr_usb_ota.c), which is that log's compaction with
+	  every step read back. Without the BLE stack nothing writes the log
+	  but the test, which rewrites whatever it holds.
+
+config TLSR_BLE_PROFILES
+	int "Profiles, one bond each (the channel keys; ZMK's &bt BT_SEL)"
+	default 3
+	range 1 4
+	depends on TLSR_BOND_LOG
+
+config TLSR_SETTINGS_LOG
+	bool "Settings kept as a log in the storage partition"
+	default y
+	depends on SETTINGS_CUSTOM && FLASH
+	select CRC
+	help
+	  The settings backend: records appended in the storage partition's
+	  fifth to eighth sectors (0x64000-0x67fff on the Cidoo boards), two
+	  areas of two sectors used in turn.
+
+# The TLSR8278's endpoint buffers share 256 octets of USB RAM: two HID
+# interfaces of 64, the CDC ACM notification's 16, and 32 for each bulk
+# endpoint make 208.
+config CDC_ACM_BULK_EP_MPS
+	default 32 if SOC_SERIES_TLSR827X || SOC_TLSR8278

@@ -1,0 +1,56 @@
+/*
+ * native_sim//zmk_test_mock overlay for the TLSR8278 usb_dc driver test: the
+ * USB controller node the driver binds to (its registers are the model's),
+ * a stand-in for the Telink interrupt controller, and a mock matrix script.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+#include <dt-bindings/zmk/kscan_mock.h>
+
+/ {
+	tlsr_periph {
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		tlsr_intc: interrupt-controller@800640 {
+			compatible = "telink,b87-intc";
+			reg = <0x00800640 0x0000000c>;
+			interrupt-controller;
+			#interrupt-cells = <1>;
+		};
+
+		usbd@800100 {
+			compatible = "telink,b87-usbd";
+			reg = <0x00800100 0x00000040>;
+			interrupt-parent = <&tlsr_intc>;
+			interrupts = <8>, <9>, <10>, <12>, <17>;
+			interrupt-names = "ep0-setup", "ep0-data", "ep0-status", "ep-data", "reset";
+			num-bidir-endpoints = <1>;
+			num-in-endpoints = <6>;
+			num-out-endpoints = <2>;
+			status = "okay";
+		};
+	};
+};
+
+&zephyr_udc0 {
+	status = "disabled";
+};
+
+/*
+ * Tap A, then B, once the host has enumerated the device (t = 1.0-2.15 s).
+ * After the OTA tests: hold &prev_fw 1 s (t = 11.15-12.15 s, too short), then
+ * 3.5 s (t = 13.15-16.65 s). A last tap of A (t = 19.65 s) for the poll-mode
+ * phase. Each event's time is the delay to the next one.
+ */
+&kscan {
+	/delete-property/ exit-after;
+	events = <
+		ZMK_MOCK_PRESS(0, 0, 1000) ZMK_MOCK_RELEASE(0, 0, 50)
+		ZMK_MOCK_PRESS(0, 1, 100) ZMK_MOCK_RELEASE(0, 1, 9000)
+		ZMK_MOCK_PRESS(1, 1, 1000) ZMK_MOCK_RELEASE(1, 1, 1000)
+		ZMK_MOCK_PRESS(1, 1, 3500) ZMK_MOCK_RELEASE(1, 1, 3000)
+		ZMK_MOCK_PRESS(0, 0, 200) ZMK_MOCK_RELEASE(0, 0, 50)
+	>;
+};

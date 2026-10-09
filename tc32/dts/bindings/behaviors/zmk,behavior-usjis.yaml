@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+description: |
+  US-JIS substitution mode (src/usjis.c): USJIS_TOG, USJIS_ON or USJIS_OFF
+  on the press. Nothing is sent to the host.
+
+compatible: "zmk,behavior-usjis"
+
+include: one_param.yaml

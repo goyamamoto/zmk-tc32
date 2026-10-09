@@ -1,0 +1,8 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/* Eight sectors, as the boards' storage partition: the log is in the last four. */
+&storage_partition {
+	reg = <0x000fc000 0x00008000>;
+};

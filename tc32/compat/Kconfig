@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+# From the LVGL module (not present here; displays are disabled).
+config LV_FONT_MONTSERRAT_12
+	bool
+
+config LV_FONT_MONTSERRAT_16
+	bool
+
+choice LV_TXT_ENC
+	prompt "LVGL text encoding (stub)"
+
+config LV_TXT_ENC_UTF8
+	bool "UTF-8"
+
+endchoice
+
+choice LV_FONT_DEFAULT
+	prompt "LVGL default font (stub)"
+
+config LV_FONT_DEFAULT_MONTSERRAT_16
+	bool "Montserrat 16"
+
+endchoice
+
+# From the Nordic HAL (not present here; only read on nRF SoCs).
+config NRF_SOC_VALIDATE_HEADERS_DISABLED
+	bool
+
+# Removed from Zephyr after 4.1; ZMK Studio's BLE transport still sets it.
+config BT_CONN_TX_MAX
+	int
+
+# The kscan API was removed from Zephyr after 4.1; ZMK's matrix drivers
+# still use it. Same symbols as Zephyr 4.1 drivers/kscan/Kconfig; the
+# header comes from zmkfirmware/zephyr v4.1.0+zmk-fixes.
+menuconfig KSCAN
+	bool "Keyboard scan drivers (ZMK compatibility)"
+
+if KSCAN
+
+module = KSCAN
+module-str = kscan
+source "subsys/logging/Kconfig.template.log_config"
+
+config KSCAN_INIT_PRIORITY
+	int "Keyboard scan driver init priority"
+	default 90
+
+endif # KSCAN

@@ -81,7 +81,7 @@ static int enc_mock_channel_get(const struct device *dev, enum sensor_channel ch
     return 0;
 }
 
-static const struct sensor_driver_api enc_mock_driver_api = {
+static DEVICE_API(sensor, enc_mock_driver_api) = {
     .trigger_set = enc_mock_trigger_set,
     .sample_fetch = enc_mock_sample_fetch,
     .channel_get = enc_mock_channel_get,

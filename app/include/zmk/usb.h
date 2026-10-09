@@ -25,3 +25,8 @@ static inline bool zmk_usb_is_powered(void) {
     return zmk_usb_get_conn_state() != ZMK_USB_CONN_NONE;
 }
 bool zmk_usb_is_hid_ready(void);
+
+/* Enables the USB device stack (at init, or by the board with ZMK_USB_ENABLE_ON_REQUEST). */
+int zmk_usb_enable(void);
+/* Whether HID reports may go over USB while it is ready (endpoints.c; true unless a board overrides it). */
+bool zmk_usb_reports_allowed(void);

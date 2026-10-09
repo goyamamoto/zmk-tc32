@@ -1,0 +1,18 @@
+# The TLSR8278's SPI flash, driven by tc32/src/flash_tlsr_spi.c over
+# tlsr_spi_flash.c and the transport in src/tlsr_spi_flash_io.S.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+description: Telink TLSR8278 SPI flash through the transport in tc32/src/tlsr_spi_flash_io.S
+
+compatible: "telink,tlsr-spi-flash"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
+
+  write-block-size:
+    type: int
+    required: true

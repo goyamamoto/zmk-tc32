@@ -6,17 +6,19 @@
 
 #include "kscan_gpio.h"
 
-#include <stdlib.h>
-
-static int compare_ports(const void *a, const void *b) {
-    const struct kscan_gpio *gpio_a = a;
-    const struct kscan_gpio *gpio_b = b;
-
-    return gpio_a->spec.port - gpio_b->spec.port;
-}
-
+// An insertion sort: the lists are a keyboard's rows or columns, a few tens of pins, and the
+// order of pins on the same port does not matter (kscan_gpio_pin_get reads each port once).
 void kscan_gpio_list_sort_by_port(struct kscan_gpio_list *list) {
-    qsort(list->gpios, list->len, sizeof(list->gpios[0]), compare_ports);
+    for (size_t i = 1; i < list->len; i++) {
+        const struct kscan_gpio g = list->gpios[i];
+        size_t j = i;
+
+        while (j > 0 && list->gpios[j - 1].spec.port > g.spec.port) {
+            list->gpios[j] = list->gpios[j - 1];
+            j--;
+        }
+        list->gpios[j] = g;
+    }
 }
 
 int kscan_gpio_pin_get(const struct kscan_gpio *gpio, struct kscan_gpio_port_state *state) {

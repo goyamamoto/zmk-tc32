@@ -1,0 +1,56 @@
+listener order ok
+mode ENABLED
+hook ENABLED
+kbd {02,[2D]}
+kbd {00,[]}
+mode DISABLED
+hook DISABLED
+mode ENABLED
+hook ENABLED
+mode DISABLED
+hook DISABLED
+kbd {00,[73]}
+kbd {00,[]}
+kbd {00,[04]}
+mode request ENABLED pending
+applying pending mode
+mode ENABLED
+hook ENABLED
+kbd {00,[]}
+kbd {00,[73]}
+kbd {00,[]}
+kbd {02,[2D]}
+mode request DISABLED pending
+mode request ENABLED pending
+kbd {00,[]}
+kbd {02,[2D]}
+mode request DISABLED pending
+mode request ENABLED pending
+kbd {00,[]}
+kbd {02,[2D]}
+mode request DISABLED pending
+kbd {00,[]}
+applying pending mode
+mode DISABLED
+hook DISABLED
+kbd {00,[73]}
+kbd {00,[]}
+kbd {00,[04]}
+mode request ENABLED pending
+endpoint clear
+HID state cleared by endpoint switch
+applying pending mode
+mode ENABLED
+hook ENABLED
+kbd {00,[]}
+kbd {02,[2D]}
+kbd {00,[]}
+kbd {02,[2D]}
+endpoint clear
+HID state cleared by endpoint switch
+mode request DISABLED pending
+applying pending mode
+mode DISABLED
+hook DISABLED
+kbd {00,[73]}
+kbd {00,[]}

@@ -100,7 +100,7 @@ static int ec11_channel_get(const struct device *dev, enum sensor_channel chan,
     return 0;
 }
 
-static const struct sensor_driver_api ec11_driver_api = {
+static DEVICE_API(sensor, ec11_driver_api) = {
 #ifdef CONFIG_EC11_TRIGGER
     .trigger_set = ec11_trigger_set,
 #endif
