@@ -247,7 +247,7 @@ S tests that use Shift use Right Shift (`0x20`) for physical Shift, to tell it a
 
 ### Where the tests run
 
-`tc32/tests/usjis/run.sh tc32` (with `KB1_REPO` set to a zmk-kb1-upstream checkout, whose prepared west workspace and pinned Docker image it borrows) builds the cases in `tc32/tests/usjis/cases/` for ZMK's `native_sim` test board and runs them with mock key events, as ZMK's own tests are run: the whole ZMK application (keymap, layers, hold-tap, `hid_listener`, endpoints) with this module. A test-only module logs every report sent and the log is compared with the expected one. `tc32/tests/usjis/generate.py` writes the cases; their expected reports are written from this document, not produced by running the firmware.
+`tc32/tests/usjis/run.sh tc32` (with `KB1_REPO` set to a zmk-keychron-b1-pro checkout, whose prepared west workspace and pinned Docker image it borrows) builds the cases in `tc32/tests/usjis/cases/` for ZMK's `native_sim` test board and runs them with mock key events, as ZMK's own tests are run: the whole ZMK application (keymap, layers, hold-tap, `hid_listener`, endpoints) with this module. A test-only module logs every report sent and the log is compared with the expected one. `tc32/tests/usjis/generate.py` writes the cases; their expected reports are written from this document, not produced by running the firmware.
 
 | Test | Case |
 | --- | --- |

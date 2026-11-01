@@ -4,7 +4,7 @@
 
 Prints the listeners subscribed to zmk_keycode_state_changed as they appear
 between __event_subscriptions_start and __event_subscriptions_end, and checks
-the condition zmk-usjis tests at startup (check_listener_order in
+the condition zmk-kb1-usjis tests at startup (check_listener_order in
 src/usjis.c): usjis after hold-tap and key repeat, and before hid_listener.
 
 Usage: check_listener_order.py build/<dir>/zephyr/zmk.elf

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Build-only check of ZMK on zephyr-tc32's generic boards with a mock key
 # matrix (the key-processing core; no USB or BLE). Set ZMK_USJIS=<path to
-# zmk-usjis> to add that module and its keymap/config (usjis.keymap,
+# zmk-kb1-usjis> to add that module and its keymap/config (usjis.keymap,
 # usjis.conf); plain ZMK otherwise.
 # Usage: tc32/tests/buildcheck/build_zmk.sh [board]  (default tlsr8278_generic)
 # Output: <workspace>/build/zmk_<board>[_usjis] (see tc32/scripts/build.sh for

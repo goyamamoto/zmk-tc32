@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 # US-JIS module tests on ZMK's native_sim test board, for both copies of the
-# module: the Keychron B1 Pro's (zmk-kb1-upstream) and zmk-tc32's (V75 Pro).
+# module: the Keychron B1 Pro's (zmk-keychron-b1-pro) and zmk-tc32's (V75 Pro).
 #
 #   bash run.sh                      # all variants, all cases
 #   bash run.sh tc32                 # one variant
 #   bash run.sh tc32 usjis-hook      # one variant, named cases
 #
 # Variants:
-#   baseline  zmk-kb1-upstream's own tests/zmk cases (unmodified), its module,
+#   baseline  zmk-keychron-b1-pro's own tests/zmk cases (unmodified), its module,
 #             its pinned upstream ZMK app: what its scripts/run-zmk-tests.sh runs
 #   kb1       this suite's cases (cases/), the kb1 module, upstream ZMK app
 #   tc32      this suite's cases, the module files copied from the zmk-tc32
@@ -21,7 +21,7 @@
 # times on one simulated flash (erased before the first), "boot N" logged
 # before each.
 #
-# Uses the zmk-kb1-upstream west workspace (KB1_REPO, its workspace/firmware
+# Uses the zmk-keychron-b1-pro west workspace (KB1_REPO, its workspace/firmware
 # prepared by its scripts) read-only, and the pinned image of its
 # scripts/build-firmware.sh; runs without network. TC32_WORKTREE defaults to
 # the zmk-tc32 tree this suite is in. Neither repository is
@@ -99,7 +99,7 @@ case "${1:-all}" in
   *) echo "usage: $0 [all|baseline|kb1|tc32] [case...]" >&2; exit 2 ;;
 esac
 
-[[ -n "$kb1" ]] || { echo "KB1_REPO: a zmk-kb1-upstream checkout whose workspace/firmware is prepared" >&2; exit 2; }
+[[ -n "$kb1" ]] || { echo "KB1_REPO: a zmk-keychron-b1-pro checkout whose workspace/firmware is prepared" >&2; exit 2; }
 python3 "$suite/generate.py" --check
 image_ref="$(sed -n 's/^image_ref="\(.*\)"$/\1/p' "$kb1/scripts/build-firmware.sh")"
 image_platform="$(sed -n 's/^image_platform="\(.*\)"$/\1/p' "$kb1/scripts/build-firmware.sh")"

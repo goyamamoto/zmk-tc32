@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Writes the US-JIS test cases in cases/ (run by run.sh). The first three are
-zmk-kb1-upstream's tests/zmk/generate.py cases, byte for byte except the
+zmk-keychron-b1-pro's tests/zmk/generate.py cases, byte for byte except the
 explicit layer mask of usjis-layers; the rest are added below.
 
 Each case is a ZMK native_sim test: a keymap with mock key events, and the
@@ -441,7 +441,7 @@ def layers_case():
 
 # ===================================================== cases added for zmk-tc32
 #
-# The cases below are not in zmk-kb1-upstream. They cover what zmk-tc32's
+# The cases below are not in zmk-keychron-b1-pro. They cover what zmk-tc32's
 # copy adds (the exclude mask, a capacity of 16, the mode hook), the settings,
 # and cases of the F65 smk port's and the NuPhy Air60 V2 QMK port's US-JIS
 # tests that the cases above lack. A case without `variants` runs on both

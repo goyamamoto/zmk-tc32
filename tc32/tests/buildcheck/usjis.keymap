@@ -4,7 +4,7 @@
 
 /*
  * IME-flavoured keymap for the TC32 build check: mod-taps that send
- * LANG2/LANG1 on tap and GUI on hold, US-JIS substitution (zmk-usjis) with its
+ * LANG2/LANG1 on tap and GUI on hold, US-JIS substitution (zmk-kb1-usjis) with its
  * toggle on layer 1, keys it substitutes (@ and "), and the JIS INT1/INT3 keys.
  */
 #include <behaviors.dtsi>
